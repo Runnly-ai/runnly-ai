@@ -8,6 +8,10 @@
     "build": "npm run frontend:build",
     "start": "npm run frontend:start",
     "lint": "npm run frontend:lint",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "frontend:dev": "npm run --prefix ui dev",
     "frontend:build": "npm run --prefix ui build",
     "frontend:start": "npm run --prefix ui start",
@@ -47,6 +51,8 @@
     "@types/node": "^24.6.0",
     "@types/react": "^18.3.23",
     "@types/react-dom": "^18.3.7",
+    "@vitest/coverage-v8": "^4.1.5",
+    "@vitest/ui": "^4.1.5",
     "autoprefixer": "^10.4.21",
     "eslint": "^8.57.1",
     "eslint-config-next": "^13.5.11",
@@ -54,6 +60,7 @@
     "tailwind-merge": "^3.3.1",
     "tailwindcss": "^3.4.17",
     "ts-node": "^10.9.2",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.5"
   }
 }
