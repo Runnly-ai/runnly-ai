@@ -2,8 +2,7 @@ import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 
 import { AUTH_COOKIE_NAME, AuthUser } from '@/utils/auth';
-
-const BACKEND_API_URL = process.env.BACKEND_API_URL || 'http://localhost:3000';
+import { BACKEND_API_URL } from '@/utils/backend-api-url';
 
 interface RegisterResponse {
   user: AuthUser;
@@ -57,4 +56,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
-

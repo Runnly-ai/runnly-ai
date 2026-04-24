@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+import { BACKEND_API_URL } from '@/utils/backend-api-url';
 
 export async function GET(
   request: NextRequest,
@@ -8,7 +7,7 @@ export async function GET(
 ) {
   try {
     const cookie = request.headers.get('cookie') || '';
-    const response = await fetch(`${API_URL}/projects/${params.id}`, {
+    const response = await fetch(`${BACKEND_API_URL}/projects/${params.id}`, {
       headers: {
         cookie,
       },
@@ -33,7 +32,7 @@ export async function PATCH(
     const body = await request.json();
     const cookie = request.headers.get('cookie') || '';
     
-    const response = await fetch(`${API_URL}/projects/${params.id}`, {
+    const response = await fetch(`${BACKEND_API_URL}/projects/${params.id}`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -60,7 +59,7 @@ export async function DELETE(
   try {
     const cookie = request.headers.get('cookie') || '';
     
-    const response = await fetch(`${API_URL}/projects/${params.id}`, {
+    const response = await fetch(`${BACKEND_API_URL}/projects/${params.id}`, {
       method: 'DELETE',
       headers: {
         cookie,

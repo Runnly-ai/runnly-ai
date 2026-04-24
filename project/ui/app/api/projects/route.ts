@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+import { BACKEND_API_URL } from '@/utils/backend-api-url';
 
 export async function GET(request: NextRequest) {
   try {
     const cookie = request.headers.get('cookie') || '';
-    const response = await fetch(`${API_URL}/projects`, {
+    const response = await fetch(`${BACKEND_API_URL}/projects`, {
       headers: {
         cookie,
       },
@@ -27,7 +26,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const cookie = request.headers.get('cookie') || '';
     
-    const response = await fetch(`${API_URL}/projects`, {
+    const response = await fetch(`${BACKEND_API_URL}/projects`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

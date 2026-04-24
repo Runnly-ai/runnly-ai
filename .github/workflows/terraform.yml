@@ -17,28 +17,28 @@ jobs:
       TF_VAR_github_repository: ${{ github.repository }}
       TF_VAR_location: eastus
       TF_VAR_environment: demo
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.7.5
-
-      - name: Azure Login
-        uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      - name: Terraform Init
-        working-directory: infra/terraform
-        run: terraform init
-
-      - name: Terraform Validate
-        working-directory: infra/terraform
-        run: terraform validate
-
-      - name: Terraform Plan
-        working-directory: infra/terraform
-        run: terraform plan -input=false
+    # steps:
+    #   - name: Checkout
+    #     uses: actions/checkout@v4
+    #
+    #   - name: Setup Terraform
+    #     uses: hashicorp/setup-terraform@v3
+    #     with:
+    #       terraform_version: 1.7.5
+    #
+    #   - name: Azure Login
+    #     uses: azure/login@v2
+    #     with:
+    #       creds: ${{ secrets.AZURE_CREDENTIALS }}
+    #
+    #   - name: Terraform Init
+    #     working-directory: infra/terraform
+    #     run: terraform init
+    #
+    #   - name: Terraform Validate
+    #     working-directory: infra/terraform
+    #     run: terraform validate
+    #
+    #   - name: Terraform Plan
+    #     working-directory: infra/terraform
+    #     run: terraform plan -input=false

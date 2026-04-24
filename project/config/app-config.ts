@@ -106,6 +106,23 @@ function parseLlmProvider(value?: string): LlmProviderId | undefined {
   return undefined;
 }
 
+function getPresetModel(provider?: AgentProviderId): string | undefined {
+  switch (provider) {
+    case AgentProviderId.Groq:
+      return 'llama-3.3-70b-versatile';
+    case AgentProviderId.DeepSeek:
+      return 'deepseek-chat';
+    case AgentProviderId.Qwen:
+      return 'qwen3-max';
+    case AgentProviderId.Doubao:
+      return 'doubao-seed-2-0-code-preview-260215';
+    case AgentProviderId.Ollama:
+      return 'qwen3-vl:8b';
+    default:
+      return undefined;
+  }
+}
+
 function resolveAbsolutePath(value: string): string {
   if (!value.trim()) {
     return process.cwd();
@@ -128,12 +145,14 @@ export function getAppConfig(): AppConfig {
     : AgentProviderId.Codex;
   
   // Simplified agent config pattern:
-  // AGENT_PROVIDER, AGENT_MODEL, AGENT_API_KEY as primary config
+  // AGENT_PRESET/AGENT_PROVIDER + AGENT_MODEL + AGENT_API_KEY as primary config
   // Falls back to AGENT_PROVIDER_DEFAULT, AGENT_MODEL_DEFAULT, and provider-specific keys
-  const agentProvider = parseAgentProvider(process.env.AGENT_PROVIDER);
+  const presetProvider = parseAgentProvider(process.env.AGENT_PRESET);
+  const agentProvider = parseAgentProvider(process.env.AGENT_PROVIDER) || presetProvider;
+  const presetModel = getPresetModel(agentProvider);
   const agentProviderDefault = agentProvider || parseAgentProvider(process.env.AGENT_PROVIDER_DEFAULT) || AgentProviderId.Codex;
   const agentApiKey = process.env.AGENT_API_KEY;
-  const agentModel = process.env.AGENT_MODEL;
+  const agentModel = process.env.AGENT_MODEL || presetModel;
   
   const logVerbose = process.env.LOG_VERBOSE === 'true';
   const factoryWorkRoot = resolveAbsolutePath(process.env.FACTORY_WORK_ROOT || './.fw');
@@ -151,6 +170,9 @@ export function getAppConfig(): AppConfig {
     : 10;
   const logSessionToFile = process.env.LOG_SESSION_TO_FILE !== 'false';
   const sessionLogDir = resolveAbsolutePath(process.env.SESSION_LOG_DIR || defaultSessionLogDir);
+  const redisKeyPrefix = process.env.REDIS_KEY_PREFIX || 'runnly-ai';
+  const redisCommandQueueKey = process.env.REDIS_COMMAND_QUEUE_KEY || `${redisKeyPrefix}:commands`;
+  const redisEventChannel = process.env.REDIS_EVENT_CHANNEL || `${redisKeyPrefix}:events`;
   const rawAuthSessionTtlHours = Number(process.env.AUTH_SESSION_TTL_HOURS || 24 * 7);
   const authSessionTtlHours = Number.isFinite(rawAuthSessionTtlHours) && rawAuthSessionTtlHours > 0
     ? rawAuthSessionTtlHours
@@ -179,9 +201,9 @@ export function getAppConfig(): AppConfig {
     eventBusBackend,
     stateBackend,
     redisUrl: process.env.REDIS_URL || 'redis://127.0.0.1:6379',
-    redisKeyPrefix: process.env.REDIS_KEY_PREFIX || 'runnly-ai',
-    redisCommandQueueKey: process.env.REDIS_COMMAND_QUEUE_KEY || 'runnly-ai:commands',
-    redisEventChannel: process.env.REDIS_EVENT_CHANNEL || 'runnly-ai:events',
+    redisKeyPrefix,
+    redisCommandQueueKey,
+    redisEventChannel,
     runWorker: process.env.RUN_WORKER !== 'false',
     runOrchestrator: process.env.RUN_ORCHESTRATOR !== 'false',
     logWorkflowProgress: logVerbose || process.env.LOG_WORKFLOW_PROGRESS === 'true',

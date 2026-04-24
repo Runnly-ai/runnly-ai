@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AUTH_COOKIE_NAME } from '@/utils/auth';
-
-const BACKEND_API_URL = process.env.BACKEND_API_URL || 'http://localhost:3000';
+import { BACKEND_API_URL } from '@/utils/backend-api-url';
 
 interface EventRecord {
   id: string;
