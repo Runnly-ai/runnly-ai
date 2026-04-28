@@ -158,6 +158,7 @@ export async function createApplication(
     logger,
     runtime,
     workspace,
+    queue,
     services: {
       authService,
       sessionService,

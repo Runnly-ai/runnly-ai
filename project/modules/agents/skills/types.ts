@@ -1,14 +1,8 @@
 import { Command } from '../../command';
 import { AgentContext } from '../agents/types/agent';
+import { AgentToolCall, AgentToolSpec } from '../tools';
 
-/**
- * Generic native-LLM client contract for skill execution.
- */
 export interface LlmClient {
-  /**
-   * @param input LLM generation input payload.
-   * @returns Model generation result.
-   */
   generate(input: LlmGenerateInput): Promise<LlmGenerateResult>;
 }
 
@@ -24,35 +18,53 @@ export interface LlmGenerateResult {
   data?: Record<string, unknown>;
 }
 
-/**
- * Execution context passed to a skill instance.
- */
+export type SkillIsolationMode = 'inline' | 'subagent';
+
+export interface SkillFrontmatter {
+  id?: string;
+  name?: string;
+  title?: string;
+  description?: string;
+  tools?: string[];
+  disallowedTools?: string[];
+  skills?: string[];
+  model?: string;
+  memory?: string;
+  hooks?: string[];
+  isolation?: SkillIsolationMode;
+}
+
+export interface SkillDocument {
+  sourcePath: string;
+  frontmatter: SkillFrontmatter;
+  body: string;
+}
+
 export interface SkillExecutionContext {
   command: Command;
   taskId: string;
   agentContext: AgentContext;
   llmClient?: LlmClient;
+  allowedTools?: string[];
+  disallowedTools?: string[];
+  toolExecutor?: SkillToolExecutor;
 }
 
-/**
- * Call signature for optional skill-local scripts (e.g., script.ts/script.js).
- */
+export interface SkillToolExecutor {
+  listTools(): AgentToolSpec[];
+  execute(call: AgentToolCall, cwd: string, workspaceRoot?: string): Promise<string>;
+}
+
 export type SkillScriptFn = (
   args: Record<string, unknown>,
   context: SkillExecutionContext
 ) => Promise<unknown> | unknown;
 
-/**
- * JSON shape returned by the LLM when requesting script execution.
- */
 export interface SkillScriptCall {
   script: string;
   args?: Record<string, unknown>;
 }
 
-/**
- * Normalized skill execution output consumed by the generic skill agent.
- */
 export interface SkillExecutionResult {
   taskStatus: 'DONE' | 'FAILED';
   taskOutput: Record<string, unknown>;
@@ -60,37 +72,32 @@ export interface SkillExecutionResult {
   eventPayload?: Record<string, unknown>;
 }
 
-/**
- * Skill contract for command-type-driven execution.
- */
 export interface AgentSkill {
   id: string;
+  title: string;
+  description: string;
+  frontmatter?: SkillFrontmatter;
   execute(context: SkillExecutionContext): Promise<SkillExecutionResult>;
 }
 
-/**
- * Lightweight metadata used for skill routing prompts.
- */
 export interface SkillMetadata {
   id: string;
   title: string;
   description: string;
   sourcePath?: string;
+  isolation?: SkillIsolationMode;
+  tools?: string[];
+  disallowedTools?: string[];
+  skills?: string[];
+  model?: string;
 }
 
-/**
- * Lazy-load manifest for one skill module.
- */
 export interface SkillManifest extends SkillMetadata {
   loader: () => Promise<AgentSkill>;
 }
 
-/**
- * Metadata for filesystem-backed SKILL.md entries.
- */
-export interface MarkdownSkillDefinition {
-  id: string;
-  title: string;
-  description: string;
+export interface MarkdownSkillDefinition extends SkillMetadata {
+  body: string;
+  frontmatter: SkillFrontmatter;
   sourcePath: string;
 }

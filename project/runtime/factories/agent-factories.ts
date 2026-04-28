@@ -374,6 +374,7 @@ function createAgentForCommandType(config: AppConfig, logger: Logger, type: Comm
       defaultModel: config.agentModelPlan || config.agentModelDefault,
       defaultCwd: config.coderDefaultCwd,
       maxIterations: config.agentMaxIterations,
+      skillsDir: config.agentSkillsDir,
     });
   }
 
@@ -384,6 +385,7 @@ function createAgentForCommandType(config: AppConfig, logger: Logger, type: Comm
       defaultModel: config.agentModelGenerate || config.agentModelDefault || config.codexModel || config.copilotModel,
       defaultCwd: config.coderDefaultCwd,
       maxIterations: config.agentMaxIterations,
+      skillsDir: config.agentSkillsDir,
     });
   }
 
@@ -394,6 +396,7 @@ function createAgentForCommandType(config: AppConfig, logger: Logger, type: Comm
       defaultModel: config.agentModelVerify || config.agentModelDefault,
       defaultCwd: config.coderDefaultCwd,
       maxIterations: config.agentMaxIterations,
+      skillsDir: config.agentSkillsDir,
     });
   }
 
@@ -404,6 +407,7 @@ function createAgentForCommandType(config: AppConfig, logger: Logger, type: Comm
       defaultModel: config.agentModelReview || config.agentModelDefault,
       defaultCwd: config.coderDefaultCwd,
       maxIterations: config.agentMaxIterations,
+      skillsDir: config.agentSkillsDir,
     });
   }
 

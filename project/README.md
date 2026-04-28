@@ -317,6 +317,32 @@ curl http://localhost:3000/sessions/<sessionId>
 curl http://localhost:3000/sessions/<sessionId>/events
 ```
 
+### Expose the API with ngrok
+
+The standalone API listens on `PORT=3001` by default, so tunnel that port:
+
+```bash
+npm run dev:api
+npm run tunnel:api
+```
+
+ngrok will print a public `https://...` URL. Use that URL for GitHub webhooks, or point your client at it instead of `http://localhost:3001`.
+
+For GitHub, the callback endpoint is:
+
+```text
+POST https://your-ngrok-domain.ngrok-free.app/webhooks/github
+```
+
+In GitHub repo settings, set the webhook payload URL to that endpoint and match `SCM_GITHUB_WEBHOOK_SECRET` in `.env` to the secret configured in GitHub.
+
+If the UI should talk to the tunneled API, set the backend URL in `ui/.env.local`:
+
+```env
+BACKEND_API_URL=https://your-ngrok-domain.ngrok-free.app
+NEXT_PUBLIC_API_URL=https://your-ngrok-domain.ngrok-free.app
+```
+
 ### 1. Single-process local (memory backends)
 
 ```bash
@@ -494,8 +520,10 @@ Command payload overrides accepted by role agents:
 
 ### Filesystem Skills (`SKILL.md`)
 
-If `AGENT_SKILLS_DIR` is set, the runtime recursively discovers files named `SKILL.md`
-and lazy-loads them as agent skills.
+The runtime recursively discovers files named `SKILL.md` or `skill.md` under
+`AGENT_SKILLS_DIR` and lazy-loads them as agent skills. The default fallback is
+`./.skills`, and the value can be a single root or a path-list separated by the
+platform path separator.
 
 Supported frontmatter in `SKILL.md`:
 - `id`: optional unique skill id
@@ -504,9 +532,14 @@ Supported frontmatter in `SKILL.md`:
 
 Routing behavior:
 - Skills are general procedure documents, not command-type-bound handlers.
+- The normal agent runtime loads available skills from the configured root and summarizes them in context.
 - The router considers metadata only (`name/title` + `description`).
 - LLM selects a skill based on \"when to use\" signal in description.
 - Full `SKILL.md` content is loaded only after selection (lazy load).
+
+Explicit invocation:
+- Set `skillId` in the command payload to route directly to a specific skill.
+- Set `skillContext` to provide extra task-specific guidance for matching and execution.
 
 To execute skill content with a native model, set:
 - `AGENT_LLM_PROVIDER=openai`

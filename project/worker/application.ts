@@ -401,6 +401,7 @@ function createAgentForCommand(command: Command, config: AppConfig, logger: Logg
       defaultModel: config.agentModelPlan || config.agentModelDefault,
       defaultCwd: config.coderDefaultCwd,
       maxIterations: config.agentMaxIterations,
+      skillsDir: config.agentSkillsDir,
     });
   }
 
@@ -411,6 +412,7 @@ function createAgentForCommand(command: Command, config: AppConfig, logger: Logg
       defaultModel: config.agentModelGenerate || config.agentModelDefault || config.codexModel || config.copilotModel,
       defaultCwd: config.coderDefaultCwd,
       maxIterations: config.agentMaxIterations,
+      skillsDir: config.agentSkillsDir,
     });
   }
 
@@ -421,6 +423,7 @@ function createAgentForCommand(command: Command, config: AppConfig, logger: Logg
       defaultModel: config.agentModelVerify || config.agentModelDefault,
       defaultCwd: config.coderDefaultCwd,
       maxIterations: config.agentMaxIterations,
+      skillsDir: config.agentSkillsDir,
     });
   }
 
@@ -431,6 +434,7 @@ function createAgentForCommand(command: Command, config: AppConfig, logger: Logg
       defaultModel: config.agentModelReview || config.agentModelDefault,
       defaultCwd: config.coderDefaultCwd,
       maxIterations: config.agentMaxIterations,
+      skillsDir: config.agentSkillsDir,
     });
   }
 
@@ -441,6 +445,7 @@ function createAgentForCommand(command: Command, config: AppConfig, logger: Logg
       defaultModel: config.agentModelDefault,
       defaultCwd: config.coderDefaultCwd,
       maxIterations: config.agentMaxIterations || 10,
+      skillsDir: config.agentSkillsDir,
     });
   }
 

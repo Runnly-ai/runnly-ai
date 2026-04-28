@@ -8,6 +8,8 @@ import { AgentSkill } from './types';
  */
 const planSkill: AgentSkill = {
   id: 'plan-skill',
+  title: 'Built-in Plan Skill',
+  description: 'Creates a minimal plan artifact for planning tasks.',
   async execute({ taskId }): Promise<{
     taskStatus: 'DONE';
     taskOutput: Record<string, unknown>;

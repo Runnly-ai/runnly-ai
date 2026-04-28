@@ -1,3 +1,5 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { CommandType } from '../../command';
 import {
   AgentSkill,
@@ -7,8 +9,6 @@ import {
   SkillScriptCall,
   SkillScriptFn,
 } from './types';
-import fs from 'node:fs/promises';
-import path from 'node:path';
 
 const EVENT_BY_COMMAND: Record<CommandType, string> = {
   PLAN: 'PLAN_COMPLETED',
@@ -24,24 +24,23 @@ const EVENT_BY_COMMAND: Record<CommandType, string> = {
  */
 export class MarkdownSkill implements AgentSkill {
   readonly id: string;
+  readonly title: string;
+  readonly description: string;
+  readonly frontmatter: MarkdownSkillDefinition['frontmatter'];
   private contentCache: string | null = null;
   private scriptsCache: Record<string, SkillScriptFn> | null = null;
 
-  /**
-   * @param definition Parsed SKILL.md definition.
-   */
   constructor(private readonly definition: MarkdownSkillDefinition) {
     this.id = definition.id;
+    this.title = definition.title;
+    this.description = definition.description;
+    this.frontmatter = definition.frontmatter;
   }
 
-  /**
-   * Executes one skill invocation.
-   */
   async execute(context: SkillExecutionContext): Promise<SkillExecutionResult> {
     const { command, taskId, llmClient } = context;
     const defaultEvent = EVENT_BY_COMMAND[command.type] || 'COMMAND_COMPLETED';
 
-    // Preserve existing test simulation behavior when command explicitly asks to fail.
     if (command.type === 'VERIFY' && Boolean(command.payload.shouldFail)) {
       return {
         taskStatus: 'FAILED',
@@ -79,11 +78,20 @@ export class MarkdownSkill implements AgentSkill {
       systemPrompt: 'You are an execution agent that follows SKILL.md instructions.',
       prompt: [
         `Skill source: ${this.definition.sourcePath}`,
+        'Skill metadata:',
+        JSON.stringify(this.definition.frontmatter, null, 2),
+        '',
         'Skill instructions:',
         skillContent,
         '',
         `Command type: ${command.type}`,
         `Command payload: ${JSON.stringify(command.payload)}`,
+        '',
+        `Allowed tools: ${(context.allowedTools || []).join(', ') || 'none'}`,
+        `Disallowed tools: ${(context.disallowedTools || []).join(', ') || 'none'}`,
+        context.toolExecutor
+          ? `Exposed tools: ${context.toolExecutor.listTools().map((tool) => tool.name).join(', ') || 'none'}`
+          : 'Exposed tools: none',
         '',
         availableScripts.length > 0
           ? `Available scripts: ${availableScripts.join(', ')}`
@@ -91,11 +99,13 @@ export class MarkdownSkill implements AgentSkill {
         'If a script is needed, return JSON only in this exact shape: {"script":"<name>","args":{}}',
         'If no script is needed, return plain text final answer.',
       ].join('\n'),
-      model: typeof command.payload.model === 'string' ? command.payload.model : undefined,
+      model: this.definition.model || (typeof command.payload.model === 'string' ? command.payload.model : undefined),
       metadata: {
         skillId: this.id,
         commandId: command.id,
         sessionId: command.sessionId,
+        allowedTools: context.allowedTools || [],
+        disallowedTools: context.disallowedTools || [],
       },
     });
 
@@ -103,9 +113,7 @@ export class MarkdownSkill implements AgentSkill {
     if (scriptCall) {
       const fn = scripts[scriptCall.script];
       if (!fn) {
-        throw new Error(
-          `Requested script "${scriptCall.script}" is not available for skill "${this.id}".`
-        );
+        throw new Error(`Requested script "${scriptCall.script}" is not available for skill "${this.id}".`);
       }
       const scriptResult = await fn(scriptCall.args || {}, context);
       return {
@@ -139,20 +147,18 @@ export class MarkdownSkill implements AgentSkill {
     };
   }
 
-  /**
-   * Loads full SKILL.md content on-demand and caches it.
-   */
   private async loadContent(): Promise<string> {
     if (this.contentCache !== null) {
       return this.contentCache;
     }
-    this.contentCache = await fs.readFile(this.definition.sourcePath, 'utf8');
+    try {
+      this.contentCache = await fs.readFile(this.definition.sourcePath, 'utf8');
+    } catch {
+      this.contentCache = this.definition.body;
+    }
     return this.contentCache;
   }
 
-  /**
-   * Lazily loads optional script module from the skill directory.
-   */
   private async loadScripts(context: SkillExecutionContext): Promise<Record<string, SkillScriptFn>> {
     if (this.scriptsCache !== null) {
       return this.scriptsCache;
@@ -168,9 +174,7 @@ export class MarkdownSkill implements AgentSkill {
         if (!stat.isFile()) {
           continue;
         }
-        const imported = (await import(fullPath)) as {
-          scripts?: Record<string, unknown>;
-        };
+        const imported = (await import(fullPath)) as { scripts?: Record<string, unknown> };
         const rawScripts = imported.scripts || {};
         const scriptEntries = Object.entries(rawScripts).filter(
           (entry): entry is [string, SkillScriptFn] => typeof entry[1] === 'function'
@@ -199,9 +203,6 @@ export class MarkdownSkill implements AgentSkill {
     return this.scriptsCache;
   }
 
-  /**
-   * Parses JSON script-call payload from LLM output when present.
-   */
   private parseScriptCall(raw: string): SkillScriptCall | null {
     const text = raw.trim();
     if (!text.startsWith('{') || !text.endsWith('}')) {
@@ -216,10 +217,7 @@ export class MarkdownSkill implements AgentSkill {
         parsed.args && typeof parsed.args === 'object' && !Array.isArray(parsed.args)
           ? (parsed.args as Record<string, unknown>)
           : {};
-      return {
-        script: parsed.script.trim(),
-        args,
-      };
+      return { script: parsed.script.trim(), args };
     } catch {
       return null;
     }

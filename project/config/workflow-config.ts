@@ -80,6 +80,21 @@ export const reactWorkflow: WorkflowConfig = {
   steps: ['PREPARE', 'REACT', 'PUBLISH'],
 };
 
+export const fastScmWorkflow: WorkflowConfig = {
+  steps: [
+    'PREPARE',
+    'PLANNING',
+    'IMPLEMENTATION',
+    'PUBLISH',
+    'SCM_PIPELINE',
+    'SCM_REVIEW',
+  ],
+  retryOnFailure: {
+    TESTING: true,
+    REVIEW: true,
+  },
+};
+
 /**
  * ReAct workflow with testing and review: Prepare → ReAct → Test → Review → Publish
  * Uses ReAct for implementation with validation steps.
@@ -113,6 +128,7 @@ export const WORKFLOW_REGISTRY: Record<string, WorkflowConfig> = {
   'PLANNING_ONLY': planningOnlyWorkflow,
   'IMPLEMENTATION_ONLY': implementationOnlyWorkflow,
   'SCM': scmWorkflow,
+  'FAST_SCM': fastScmWorkflow,
   'QUICK_SCM': quickscmWorkflow,
   'REACT': reactWorkflow,
   'REACT_FULL': reactFullWorkflow,
@@ -138,7 +154,7 @@ export function getWorkflowByName(
 /**
  * Active workflow name - can be set via environment variable or config.
  * Valid values: 'DEFAULT', 'PLANNING_ONLY', 'IMPLEMENTATION_ONLY', 'SCM', 
- *               'QUICK_SCM', 'REACT', 'REACT_FULL', 'REACT_SCM'
+ *               'QUICK_SCM', 'REACT', 'REACT_FULL', 'REACT_SCM', 'FAST_SCM'
  */
 const ACTIVE_WORKFLOW_NAME = process.env.WORKFLOW_NAME || 'QUICK_SCM';
 

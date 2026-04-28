@@ -7,7 +7,32 @@ export type AgentToolName =
   | 'list_dir'
   | 'git_status'
   | 'git_diff'
-  | 'run_shell';
+  | 'git_branch'
+  | 'git_log'
+  | 'git_blame'
+  | 'git_ls_files'
+  | 'git_remote'
+  | 'git_tag'
+  | 'git_config_get'
+  | 'git_reflog'
+  | 'git_ls_remote'
+  | 'git_add'
+  | 'git_commit'
+  | 'git_checkout'
+  | 'git_merge'
+  | 'git_rebase'
+  | 'git_reset'
+  | 'git_stash'
+  | 'git_cherry_pick'
+  | 'git_push'
+  | 'git_fetch'
+  | 'git_worktree'
+  | 'run_shell'
+  | 'pwd'
+  | 'file_size'
+  | 'glob'
+  | 'tool_search'
+  | 'edit_file';
 
 export interface AgentToolCall {
   tool: AgentToolName;

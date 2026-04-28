@@ -2,6 +2,8 @@ import { Command } from '../../command';
 import { Agent, AgentContext } from './types/agent';
 import { AgentProviderId, AgentProviderRunResult, isAgentProviderId } from './types/agent-provider';
 import { AgentProviderRouter } from './providers/agent-provider-router';
+import { createDefaultSkillRegistry } from '../skills/default-skill-registry';
+import { SkillMetadata } from '../skills/types';
 
 type RoleTaskStatus = 'DONE' | 'FAILED';
 
@@ -11,6 +13,7 @@ interface RoleAgentOptions {
   defaultCwd: string;
   maxIterations?: number;
   defaultSkillContext?: string;
+  skillsDir?: string;
 }
 
 interface RoleExecutionDecision {
@@ -48,6 +51,7 @@ export abstract class RoleAgent extends Agent {
 
     await context.taskService.markInProgress(taskId);
     const task = await context.taskService.getById(taskId);
+    const skillContext = await this.resolveSkillContextWithRegistry(command, context);
     
     // Prepare clean input for provider - no prompt building here
     const input = {
@@ -61,7 +65,7 @@ export abstract class RoleAgent extends Agent {
       taskTitle: task?.title,
       taskDescription: this.extractTaskDescription(command),
       projectContext: this.extractProjectContext(command),
-      skillContext: this.resolveSkillContext(command),
+      skillContext,
       requirements: this.extractRequirements(command),
       constraints: this.extractConstraints(command),
       
@@ -275,6 +279,49 @@ export abstract class RoleAgent extends Agent {
     const payloadSkillContext =
       typeof command.payload.skillContext === 'string' ? command.payload.skillContext.trim() : '';
     return payloadSkillContext || this.options.defaultSkillContext;
+  }
+
+  /**
+   * Loads configured filesystem skills and summarizes them into provider context.
+   */
+  protected async resolveSkillContextWithRegistry(command: Command, context: AgentContext): Promise<string | undefined> {
+    const payloadSkillContext = this.resolveSkillContext(command);
+    const skillsDir = this.options.skillsDir || process.env.AGENT_SKILLS_DIR || '';
+    if (!skillsDir.trim()) {
+      return payloadSkillContext;
+    }
+
+    try {
+      const registry = await createDefaultSkillRegistry({
+        skillsDir,
+        logger: context.logger,
+      });
+      const skills = registry.listCandidates();
+      if (skills.length === 0) {
+        return payloadSkillContext;
+      }
+
+      const summary = this.formatSkillSummary(skills);
+      return payloadSkillContext ? `${payloadSkillContext}\n\n${summary}` : summary;
+    } catch (error: unknown) {
+      context.logger.error('[role-agent] failed to load skills context', error);
+      return payloadSkillContext;
+    }
+  }
+
+  protected formatSkillSummary(skills: SkillMetadata[]): string {
+    const lines = skills.map((skill) => {
+      const toolText = skill.tools?.length ? ` tools=${skill.tools.join(',')}` : '';
+      const dependencyText = skill.skills?.length ? ` skills=${skill.skills.join(',')}` : '';
+      const isolationText = skill.isolation ? ` isolation=${skill.isolation}` : '';
+      return `- ${skill.id}: ${skill.title} — ${skill.description}${toolText}${dependencyText}${isolationText}`;
+    });
+    return [
+      '## Available Skills',
+      'The following skills are available from the configured skill root(s). Use them when they match the task.',
+      '',
+      ...lines,
+    ].join('\n');
   }
 
   /**

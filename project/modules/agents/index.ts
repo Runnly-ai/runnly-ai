@@ -13,6 +13,17 @@ export { AgentProviderRouter } from './agents/providers/agent-provider-router';
 export { AgentToolName, AgentToolCall, AgentToolSpec, AgentToolExecutor } from './agents/providers/agent-tools';
 export { BasicAgentToolbox } from './agents/providers/basic-agent-toolbox';
 export { ReadonlyAgentToolbox } from './agents/providers/readonly-agent-toolbox';
+export {
+  AgentToolCall as ToolsAgentToolCall,
+  AgentToolContext,
+  AgentToolIntent,
+  AgentToolSpec as ToolsAgentToolSpec,
+  AgentToolExecutor as ToolsAgentToolExecutor,
+  AgentToolExecutorOptions,
+  getToolCatalog,
+  filterReadonlyTools,
+  isShellCommandAllowed,
+} from './tools';
 export { CliAgentProvider } from './agents/providers/cli-agent-provider';
 export { LlmAgentProvider } from './agents/providers/llm-agent-provider';
 export { CodexCliTaskRunner } from './agents/providers/codex-client';
@@ -39,19 +50,26 @@ export {
   LlmGenerateInput,
   LlmGenerateResult,
   SkillExecutionContext,
+  SkillToolExecutor,
   SkillScriptFn,
   SkillScriptCall,
   SkillExecutionResult,
   AgentSkill,
   SkillMetadata,
   SkillManifest,
+  SkillFrontmatter,
+  SkillDocument,
   MarkdownSkillDefinition,
+  SkillIsolationMode,
 } from './skills/types';
 export { SkillRegistry } from './skills/skill-registry';
-export { SkillAgent } from './skills/skill-agent';
 export { createDefaultSkillRegistry } from './skills/default-skill-registry';
 export { MarkdownSkill } from './skills/markdown-skill';
-export { loadMarkdownSkillManifests } from './skills/markdown-skill-loader';
+export { loadMarkdownSkillManifests } from './skills/loader';
+export { parseSkillMarkdown } from './skills/parser';
+export { matchSkill } from './skills/matcher';
+export { buildSkillCatalogPrompt } from './skills/prompt';
+export { SkillScopedToolExecutor } from './skills/tool-executor';
 // Keep using original prompt structure
 export { RolePromptSet, planningPrompts, generatePrompts, verifyPrompts, reviewPrompts, reactPrompts } from './prompts';
 // Centralized prompt mapping (uses existing prompts unchanged)

@@ -5,6 +5,8 @@ import { AgentSkill } from './types';
  */
 const reviewSkill: AgentSkill = {
   id: 'review-skill',
+  title: 'Built-in Review Skill',
+  description: 'Marks review tasks as completed with a minimal output.',
   async execute({ taskId }) {
     return {
       taskStatus: 'DONE' as const,

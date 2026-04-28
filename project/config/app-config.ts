@@ -62,6 +62,7 @@ export interface AppConfig {
   agentModelVerify?: string;
   agentModelReview?: string;
   agentModelIntake?: string;
+  agentSkillsDir?: string;
   agentMaxToolSteps: number;
   agentMaxIterations: number;
   codexModel?: string;
@@ -240,6 +241,7 @@ export function getAppConfig(): AppConfig {
     agentModelVerify: process.env.AGENT_MODEL_VERIFY || undefined,
     agentModelReview: process.env.AGENT_MODEL_REVIEW || undefined,
     agentModelIntake: process.env.AGENT_MODEL_INTAKE || undefined,
+    agentSkillsDir: process.env.AGENT_SKILLS_DIR || './.skills',
     agentMaxToolSteps,
     agentMaxIterations,
     codexModel: process.env.CODEX_MODEL || undefined,

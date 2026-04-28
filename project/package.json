@@ -8,6 +8,7 @@
     "build": "npm run frontend:build",
     "start": "npm run frontend:start",
     "lint": "npm run frontend:lint",
+    "tunnel:api": "ngrok http 3001",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run",

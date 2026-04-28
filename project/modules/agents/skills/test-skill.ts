@@ -5,6 +5,8 @@ import { AgentSkill } from './types';
  */
 const testSkill: AgentSkill = {
   id: 'test-skill',
+  title: 'Built-in Test Skill',
+  description: 'Runs a simple pass/fail simulation for verification tasks.',
   async execute({ command, taskId }) {
     const shouldFail = Boolean(command.payload.shouldFail);
     if (shouldFail) {
