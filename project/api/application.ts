@@ -58,6 +58,7 @@ export async function createApiApplication(config: AppConfig) {
   return {
     logger,
     workspace,
+    queue: storage.queue, // Expose queue for session enqueueing
     services: {
       authService,
       sessionService,

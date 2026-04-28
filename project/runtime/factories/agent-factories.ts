@@ -167,7 +167,9 @@ function createCliProviders(config: AppConfig): Map<AgentProviderId, AgentProvid
  * Creates provider router for role-agent execution with full toolbox.
  */
 export function createAgentProviderRouter(config: AppConfig, logger: Logger): AgentProviderRouter {
-  const toolExecutor = new BasicAgentToolbox();
+  const toolExecutor = new BasicAgentToolbox({
+    allowAllCommands: process.env.AGENT_ALLOW_ALL_COMMANDS === 'true',
+  });
   const cliProviders = createCliProviders(config);
   const llmProviders = createLlmProviders(config, logger, toolExecutor);
 

@@ -8,6 +8,7 @@ export { PlanningRoleAgent } from './agents/planning-role-agent';
 export { GenerateRoleAgent } from './agents/generate-role-agent';
 export { VerifyRoleAgent } from './agents/verify-role-agent';
 export { ReviewRoleAgent } from './agents/review-role-agent';
+export { ReActRoleAgent } from './agents/react-role-agent';
 export { AgentProviderRouter } from './agents/providers/agent-provider-router';
 export { AgentToolName, AgentToolCall, AgentToolSpec, AgentToolExecutor } from './agents/providers/agent-tools';
 export { BasicAgentToolbox } from './agents/providers/basic-agent-toolbox';
@@ -52,6 +53,6 @@ export { createDefaultSkillRegistry } from './skills/default-skill-registry';
 export { MarkdownSkill } from './skills/markdown-skill';
 export { loadMarkdownSkillManifests } from './skills/markdown-skill-loader';
 // Keep using original prompt structure
-export { RolePromptSet, planningPrompts, generatePrompts, verifyPrompts, reviewPrompts } from './prompts';
+export { RolePromptSet, planningPrompts, generatePrompts, verifyPrompts, reviewPrompts, reactPrompts } from './prompts';
 // Centralized prompt mapping (uses existing prompts unchanged)
 export { ROLE_PROMPTS, getSystemPrompt, getRequirementPrompt } from './agents/prompts/role-prompts';

@@ -18,6 +18,7 @@ async function main(): Promise<void> {
     userIntakeService: app.services.userIntakeService,
     logger: app.logger,
     scmWebhookService: app.services.scmWebhookService,
+    sessionQueue: app.queue,
   });
 
   const listener: Server = server.listen(config.port, () => {

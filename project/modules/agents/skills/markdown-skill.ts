@@ -16,6 +16,7 @@ const EVENT_BY_COMMAND: Record<CommandType, string> = {
   FIX: 'IMPLEMENT_COMPLETED',
   VERIFY: 'TEST_PASSED',
   REVIEW: 'REVIEW_COMPLETED',
+  REACT: 'REACT_COMPLETED',
 };
 
 /**

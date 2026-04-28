@@ -53,6 +53,14 @@ export class CommandService {
   }
 
   /**
+   * @param sessionId Session identifier.
+   * @returns All commands for the session.
+   */
+  listBySessionId(sessionId: string): Promise<Command[]> {
+    return this.commandRepo.listBySessionId(sessionId);
+  }
+
+  /**
    * @param commandId Command identifier.
    * @returns Updated command, or null if not found.
    */

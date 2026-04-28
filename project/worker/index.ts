@@ -24,10 +24,11 @@ async function main(): Promise<void> {
       process.removeListener('SIGINT', onSigint);
       process.removeListener('SIGTERM', onSigterm);
 
+      // Give worker 30 seconds to finish current session gracefully
       const forceTimer = setTimeout(() => {
         app.logger.error('Forced shutdown after timeout');
         process.exit(1);
-      }, 10_000);
+      }, 5_000);
       forceTimer.unref();
 
       try {

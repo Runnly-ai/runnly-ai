@@ -20,11 +20,9 @@
     "dev:backend": "ts-node index.ts",
     "dev:api": "ts-node api/index.ts",
     "dev:worker": "ts-node worker/index.ts",
-    "dev:orchestrator": "ts-node orchestrator/index.ts",
     "start:backend": "node dist/index.js",
     "start:api": "node dist/api/index.js",
     "start:worker": "node dist/worker/index.js",
-    "start:orchestrator": "node dist/orchestrator/index.js",
     "redis-mac": "redis-server",
     "redis": "C:\\Redis\\redis-server.exe"
   },

@@ -53,7 +53,7 @@ export class UserIntakeService {
           updatedAt: Date.now(),
         };
         this.pendingByThreadId.set(key, refreshed);
-        return this.buildNeedsInfoResult(refreshed, intakeMessages.needsInfoFollowup);
+        return await this.buildNeedsInfoResult(refreshed, intakeMessages.needsInfoFollowup);
       }
 
       this.pendingByThreadId.delete(key);
@@ -97,7 +97,7 @@ export class UserIntakeService {
           updatedAt: Date.now(),
         };
         this.pendingByThreadId.set(key, draft);
-        return this.buildNeedsInfoResult(
+        return await this.buildNeedsInfoResult(
           draft,
           intakeMessages.needsInfoInitial,
         );
@@ -191,9 +191,22 @@ export class UserIntakeService {
     };
   }
 
-  private buildNeedsInfoResult(draft: PendingTaskDraft, summary: string): StructuredRequestResult {
+  private async buildNeedsInfoResult(draft: PendingTaskDraft, summary: string): Promise<StructuredRequestResult> {
     const currentIssue = draft.missing[draft.askIndex] || draft.missing[0];
-    const question = currentIssue ? currentIssue.question : 'Please provide the missing high-level task information.';
+    
+    // Use LLM to generate intelligent, contextual question instead of static template
+    let question: string;
+    try {
+      question = await this.intakeAgent.askForMissingInfo(
+        draft.request,
+        draft.missing,
+        `The user said: "${draft.request.goal}". We need more information about: ${currentIssue.field}`
+      );
+    } catch (err) {
+      // Fallback to static question if LLM fails
+      question = currentIssue ? currentIssue.question : 'Please provide the missing high-level task information.';
+    }
+    
     return {
       kind: 'task_needs_info',
       request: draft.request,

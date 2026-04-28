@@ -8,6 +8,7 @@ const COMMAND_CAPABILITY: Record<CommandType, string> = {
   FIX: 'generate',
   VERIFY: 'verify',
   REVIEW: 'review',
+  REACT: 'react',
 };
 
 /**

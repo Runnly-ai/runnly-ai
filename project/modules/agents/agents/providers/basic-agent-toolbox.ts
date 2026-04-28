@@ -5,6 +5,7 @@ import { AgentToolCall, AgentToolExecutor, AgentToolSpec } from './agent-tools';
 interface BasicAgentToolboxOptions {
   allowedShellCommandPrefixes?: string[];
   workspaceRoot?: string;
+  allowAllCommands?: boolean; // If true, bypass shell command allowlist (use with caution)
 }
 
 /**
@@ -14,6 +15,7 @@ export class BasicAgentToolbox implements AgentToolExecutor {
   private readonly allowedShellCommandPrefixes: string[];
   private readonly forbiddenShellSubstrings: string[];
   private readonly workspaceRoot?: string;
+  private readonly allowAllCommands: boolean;
 
   constructor(options: BasicAgentToolboxOptions = {}) {
     this.allowedShellCommandPrefixes = options.allowedShellCommandPrefixes || [
@@ -35,6 +37,8 @@ export class BasicAgentToolbox implements AgentToolExecutor {
       'go',
       // Rust
       'cargo',
+      'rustc',
+      'rustup',
       // .NET
       'dotnet',
       // Java/Kotlin
@@ -73,6 +77,7 @@ export class BasicAgentToolbox implements AgentToolExecutor {
     ];
 
     this.workspaceRoot = options.workspaceRoot;
+    this.allowAllCommands = options.allowAllCommands ?? false;
   }
 
   /**
@@ -91,7 +96,7 @@ export class BasicAgentToolbox implements AgentToolExecutor {
       {
         name: 'run_shell',
         description:
-          'Run ONE command inside the workspace cwd (no chaining like &&, ;, |). Command must start with an allowlisted prefix (npm|npx|pnpm|yarn|bun|node|python|python3|pip|pip3|pytest|poetry|uv|go|cargo|dotnet|mvn|gradle|./gradlew|bundle|rake|php|composer|make|cmake|ls|dir|cat|type|rg|pwd). Do NOT use cd; set cwd via the command payload instead.',
+          'Run ONE command inside the workspace cwd (no chaining like &&, ;, |). Command must start with an allowlisted prefix (npm|npx|pnpm|yarn|bun|node|python|python3|pip|pip3|pytest|poetry|uv|go|cargo|rustc|rustup|dotnet|mvn|gradle|./gradlew|bundle|rake|php|composer|make|cmake|ls|dir|cat|type|rg|pwd). Do NOT use cd; set cwd via the command payload instead.',
         args: ['command'],
       },
     ];
@@ -341,6 +346,11 @@ export class BasicAgentToolbox implements AgentToolExecutor {
    * Enforces shell-command prefix allowlist for safety.
    */
   private validateShellCommand(command: string): void {
+    // If allowAllCommands is true, bypass all restrictions (use with caution)
+    if (this.allowAllCommands) {
+      return;
+    }
+
     const trimmed = command.trim();
     for (const forbidden of this.forbiddenShellSubstrings) {
       if (trimmed.includes(forbidden)) {

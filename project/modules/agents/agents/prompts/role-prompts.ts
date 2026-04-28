@@ -3,6 +3,7 @@ import { planningPrompts } from '../../prompts/planning';
 import { generatePrompts } from '../../prompts/generate';
 import { verifyPrompts } from '../../prompts/verify';
 import { reviewPrompts } from '../../prompts/review';
+import { reactPrompts } from '../../prompts/react';
 import { RolePromptSet } from '../../prompts/types';
 
 /**
@@ -15,6 +16,7 @@ export const ROLE_PROMPTS: Record<CommandType, RolePromptSet> = {
   FIX: generatePrompts, // FIX uses same prompts as GENERATE
   VERIFY: verifyPrompts,
   REVIEW: reviewPrompts,
+  REACT: reactPrompts,
 };
 
 /**

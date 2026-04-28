@@ -6,6 +6,7 @@ import { ScmWebhookService } from '../modules/scm';
 import { UserIntakeService } from '../modules/intake';
 import { Logger } from '../modules/utils/logger';
 import { AuthService, PublicUser } from '../modules/auth';
+import { CommandQueue } from '../modules/infra';
 
 interface CreateSessionBody {
   goal?: unknown;
@@ -37,6 +38,7 @@ const AUTH_COOKIE_NAME = 'asf_auth_token';
  * @param deps Server dependencies.
  * @param deps.sessionService Session service.
  * @param deps.logger Logger provider.
+ * @param deps.sessionQueue Queue for enqueueing session IDs for workers.
  * @returns Configured Express app.
  */
 export function createApiServer({
@@ -46,6 +48,7 @@ export function createApiServer({
   userIntakeService,
   logger,
   scmWebhookService,
+  sessionQueue,
 }: {
   authService: AuthService;
   sessionService: SessionService;
@@ -53,6 +56,7 @@ export function createApiServer({
   userIntakeService: UserIntakeService;
   logger: Logger;
   scmWebhookService: ScmWebhookService;
+  sessionQueue: CommandQueue;
 }) {
   const app = express();
   app.use(
@@ -195,6 +199,11 @@ export function createApiServer({
       res.status(500).json({ error: 'Failed to auto-start session.' });
       return;
     }
+    
+    // Enqueue session for worker to process
+    await sessionQueue.enqueue(session.id);
+    logger.info('session enqueued for processing', { sessionId: session.id });
+    
     const view = await sessionService.getSessionView(session.id);
     if (!view) {
       res.status(500).json({ error: 'Failed to load started session view.' });
@@ -224,6 +233,13 @@ export function createApiServer({
       threadId,
       { metadata: { userId: user.id } },
     );
+    
+    // If a task session was started, enqueue it for worker processing
+    if (result.kind === 'task' && result.sessionId && result.status === 'RUNNING') {
+      await sessionQueue.enqueue(result.sessionId);
+      logger.info('session enqueued for processing', { sessionId: result.sessionId });
+    }
+    
     res.status(200).json(result);
   }));
 
@@ -242,6 +258,11 @@ export function createApiServer({
       res.status(404).json({ error: 'Session not found.' });
       return;
     }
+    
+    // Enqueue session for worker to process
+    await sessionQueue.enqueue(sessionId);
+    logger.info('session enqueued for processing', { sessionId });
+    
     const view = await sessionService.getSessionView(sessionId);
     res.status(200).json(view);
   }));

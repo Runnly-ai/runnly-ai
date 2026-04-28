@@ -60,6 +60,58 @@ export class UserIntakeAgent extends RoleAgent {
     return this.normalizeStructuredRequest(parsed, rawMessage);
   }
 
+  /**
+   * Intelligently ask for missing information based on context.
+   * Instead of static template questions, the LLM crafts contextual questions.
+   */
+  async askForMissingInfo(
+    currentRequest: any,
+    missingFields: Array<{ field: string; reason: string; question: string }>,
+    conversationHistory?: string
+  ): Promise<string> {
+    const systemPrompt = [
+      'You are Ericada, a helpful delivery manager agent.',
+      'The user started a task but some required information is missing.',
+      'Your job is to ask for ONE missing piece of information in a natural, conversational way.',
+      '',
+      'Current task draft:',
+      `Goal: ${currentRequest.goal || '(not specified)'}`,
+      `Context: ${JSON.stringify(currentRequest.context || {}, null, 2)}`,
+      '',
+      'Missing information:',
+      ...missingFields.map((f, i) => `${i + 1}. ${f.field}: ${f.reason}`),
+      '',
+      'Rules:',
+      '- Ask for the FIRST missing field only',
+      '- Be conversational and context-aware',
+      '- Reference what the user already told you',
+      '- Keep it brief (1-2 sentences)',
+      '- Don\'t use templates or formal language',
+      '',
+      'Return ONLY the question text, no JSON, no formatting.',
+    ].join('\n');
+
+    const userPrompt = conversationHistory || 'Ask for the first missing information.';
+
+    const run = await this.providerRouter.run(this.intakeOptions.provider, {
+      taskType: 'INTAKE' as any,
+      userRequest: userPrompt,
+      cwd: this.intakeOptions.cwd,
+      model: this.intakeOptions.model,
+      enableTools: false,
+      instruction: userPrompt,
+      systemPrompt,
+      userPrompt,
+    });
+
+    if (run.exitCode !== 0) {
+      // Fallback to static question if LLM fails
+      return missingFields[0]?.question || 'Please provide the missing information.';
+    }
+
+    return (run.stdout || '').trim() || missingFields[0]?.question || 'Please provide the missing information.';
+  }
+
   private buildIntakeSystemPrompt(): string {
     return [
       'You are Ericada, the delivery manager agent.',
@@ -88,28 +140,28 @@ export class UserIntakeAgent extends RoleAgent {
       '- CONVERSE: user is chatting, asking explanation, greeting, or requesting guidance with no workflow execution.',
       '- TASK: user asks to build/change/run/check anything in workflow/session/orchestration.',
       '1) Detect SCM URL from rawMessage:',
-      '- If SCM URL is present => scmDetected=true',
+      '- If SCM URL is present => scmDetected=true, extract to context.scm',
       '- If no SCM URL => scmDetected=false',
-      '2) rawMessageSanitized must remove SCM URL(s) but keep user intent.',
+      '2) Extract goal intelligently:',
+      '- Use the rawMessageSanitized (without SCM URL) as the goal',
+      '- Keep the goal concise but preserve user intent',
+      '- Don\'t add formality - keep user\'s natural language',
       '3) If route=CONVERSE then action must be CONVERSE and reply must be non-empty.',
       '4) If route=TASK and uncertain action, default to START_SESSION.',
       '5) START_SESSION must include goal and autoStart (default true unless user says not to start).',
       '6) GET_SESSION and GET_EVENTS must include sessionId.',
-      '7) context should include scm only when scmDetected=true:',
-      '   context.scm = { "provider": "...", "repoUrl": "..." }',
+      '7) context.scm must include provider (github/azure-devops/gitlab) and repoUrl when scmDetected=true.',
       '8) Never output markdown, prose, or code fences. JSON only.',
       '',
       'Few-shot examples:',
       '',
-      'Input:',
-      'rawMessage: hi can you explain what this platform does',
-      '',
+      'Input: hi can you explain what this platform does',
       'Output:',
       '{',
       '  "route": "CONVERSE",',
       '  "action": "CONVERSE",',
       '  "confidence": 0.98,',
-      '  "reply": "This platform turns a request into an execution workflow: intake, planning, implementation, verification, and review. It can also track sessions and stream logs.",',
+      '  "reply": "This platform turns your request into a workflow: planning, coding, testing, and review. It can also track sessions and stream progress.",',
       '  "rawMessageSanitized": "hi can you explain what this platform does",',
       '  "scmDetected": false,',
       '  "goal": "",',
@@ -118,18 +170,16 @@ export class UserIntakeAgent extends RoleAgent {
       '  "sessionId": ""',
       '}',
       '',
-      'Input:',
-      'rawMessage: setup next.js in TS for this repo https://github.com/org/repo.git',
-      '',
+      'Input: setup next.js in TS for https://github.com/org/repo.git',
       'Output:',
       '{',
       '  "route": "TASK",',
       '  "action": "START_SESSION",',
       '  "confidence": 0.95,',
       '  "reply": "",',
-      '  "rawMessageSanitized": "setup next.js in TS for this repo",',
+      '  "rawMessageSanitized": "setup next.js in TS",',
       '  "scmDetected": true,',
-      '  "goal": "setup next.js in TS for this repo",',
+      '  "goal": "setup next.js in TS",',
       '  "autoStart": true,',
       '  "context": {',
       '    "scm": {',
@@ -140,9 +190,22 @@ export class UserIntakeAgent extends RoleAgent {
       '  "sessionId": ""',
       '}',
       '',
-      'Input:',
-      'rawMessage: create session for adding login page but do not start yet',
+      'Input: add a login page to my react app',
+      'Output:',
+      '{',
+      '  "route": "TASK",',
+      '  "action": "START_SESSION",',
+      '  "confidence": 0.9,',
+      '  "reply": "",',
+      '  "rawMessageSanitized": "add a login page to my react app",',
+      '  "scmDetected": false,',
+      '  "goal": "add a login page to my react app",',
+      '  "autoStart": true,',
+      '  "context": {},',
+      '  "sessionId": ""',
+      '}',
       '',
+      'Input: create session for adding login page but do not start yet',
       'Output:',
       '{',
       '  "route": "TASK",',

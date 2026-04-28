@@ -136,6 +136,9 @@ export class OrchestrationService {
       case 'IMPLEMENT_COMPLETED':
         await this.handleImplementCompleted(event);
         break;
+      case 'REACT_COMPLETED':
+        await this.handleReactCompleted(event);
+        break;
       case 'TEST_FAILED':
         await this.handleTestFailed(event);
         break;
@@ -230,9 +233,9 @@ export class OrchestrationService {
       return;
     }
 
-    // If PREPARE is NOT enabled, go straight to PLANNING
+    // If PREPARE is NOT enabled, go to first available step (REACT, PLANNING, etc.)
     this.log('orchestrator skipping PREPARE step (not in workflow)', { sessionId: event.sessionId });
-    await this.triggerPlanning(event.sessionId);
+    await this.triggerFirstStep(event.sessionId);
   }
 
   /**
@@ -242,10 +245,49 @@ export class OrchestrationService {
   private async handlePrepareCompleted(event: EventRecord): Promise<void> {
     this.log('orchestrator completed workflow step: PREPARE', { sessionId: event.sessionId });
     
-    // Always trigger PLANNING if it is enabled.
-    if (this.isStepEnabled('PLANNING')) {
-      await this.triggerPlanning(event.sessionId);
+    // Trigger first available step (REACT, PLANNING, etc.)
+    await this.triggerFirstStep(event.sessionId);
+  }
+
+  /**
+   * Helper to trigger the first step after PREPARE (REACT or PLANNING).
+   */
+  private async triggerFirstStep(sessionId: string): Promise<void> {
+    if (this.isStepEnabled('REACT')) {
+      await this.triggerReact(sessionId);
+    } else if (this.isStepEnabled('PLANNING')) {
+      await this.triggerPlanning(sessionId);
     }
+  }
+
+  /**
+   * Helper to trigger the ReAct task (combined planning + implementation).
+   */
+  private async triggerReact(sessionId: string): Promise<void> {
+    const session = await this.deps.sessionRepo.getById(sessionId);
+    const workspaceId = this.extractWorkspaceId(session?.context);
+    const scmWorkspace = this.extractScmWorkspace(session?.context);
+    const cwd = scmWorkspace?.worktreeDir || await this.ensureSessionAgentDir(sessionId, workspaceId);
+
+    const executionContext = this.buildExecutionContextPayload(session);
+    const task = await this.deps.taskService.createTask({
+      sessionId: sessionId,
+      type: TaskType.IMPLEMENT,  // Reuse IMPLEMENT task type since ReAct does implementation
+      title: 'ReAct: Plan and implement with reasoning',
+      input: executionContext,
+    });
+
+    await this.deps.commandService.dispatch({
+      sessionId: sessionId,
+      type: 'REACT',
+      payload: {
+        taskId: task.id,
+        cwd,
+        enableTools: true,
+        ...executionContext,
+      },
+    });
+    this.log('orchestrator started workflow step: REACT', { sessionId, taskId: task.id });
   }
 
   /**
@@ -331,6 +373,58 @@ export class OrchestrationService {
   }
 
   /**
+   * @param event REACT_COMPLETED event.
+   * @returns Promise resolved after conditional TEST dispatch or PUBLISH.
+   */
+  private async handleReactCompleted(event: EventRecord): Promise<void> {
+    const session = await this.deps.sessionRepo.getById(event.sessionId);
+    const workspaceId = this.extractWorkspaceId(session?.context);
+    const reactTaskId = String(event.payload.taskId || '');
+    
+    // Extract and persist changes summary (same as GENERATE flow)
+    const changesSummary = await this.extractChangesSummary(event.sessionId);
+    await this.writeGenerateSummaryFile(event.sessionId, workspaceId, changesSummary);
+    
+    this.log('orchestrator completed workflow step: REACT', {
+      sessionId: event.sessionId,
+      taskId: reactTaskId,
+    });
+
+    // Only dispatch VERIFY if TESTING step is in the workflow
+    if (!this.isStepEnabled('TESTING')) {
+      this.log('orchestrator skipped TESTING step (not in workflow)', {
+        sessionId: event.sessionId,
+      });
+
+      // If PUBLISH is enabled, trigger it now.
+      if (this.isStepEnabled('PUBLISH')) {
+        await this.publishChanges(event.sessionId);
+      }
+      return;
+    }
+
+    const testTask = await this.deps.taskService.createTask({
+      sessionId: event.sessionId,
+      type: TaskType.TEST,
+      title: 'Run validation tests',
+    });
+    const scmWorkspace = this.extractScmWorkspace(session?.context);
+    const cwd = scmWorkspace?.worktreeDir || await this.ensureSessionAgentDir(event.sessionId, workspaceId);
+    const executionContext = this.buildExecutionContextPayload(session);
+
+    await this.deps.commandService.dispatch({
+      sessionId: event.sessionId,
+      type: 'VERIFY',
+      payload: {
+        taskId: testTask.id,
+        cwd,
+        ...executionContext,
+      },
+    });
+    this.log('orchestrator started workflow step: TESTING', { sessionId: event.sessionId, taskId: testTask.id });
+  }
+
+  /**
    * @param event IMPLEMENT_COMPLETED event.
    * @returns Promise resolved after conditional TEST dispatch.
    */
@@ -397,9 +491,26 @@ export class OrchestrationService {
 
     try {
       this.log('orchestrator publishing changes', { sessionId });
+      
+      // Extract changes summary from implementation tasks
+      const changesSummary = await this.extractChangesSummary(sessionId);
+      
+      // Write changes summary to ao/GENERATE.md
+      const workspaceId = this.extractWorkspaceId(session.context);
+      await this.writeGenerateSummaryFile(sessionId, workspaceId, changesSummary);
+      
+      // Build PR description with parsed changes summary
+      const prDescription = this.buildPrDescription(sessionId, session.goal, changesSummary);
+      
+      // Update config with generated PR description
+      const configWithDescription: typeof scmConfig = {
+        ...scmConfig,
+        prDescription,
+      };
+      
       const publishResult = await this.deps.scmService.publishAndCollectFeedback({
         sessionId,
-        config: scmConfig,
+        config: configWithDescription,
         workspace: scmWorkspace,
       });
 
@@ -870,6 +981,58 @@ export class OrchestrationService {
     return value as Record<string, unknown>;
   }
 
+  /**
+   * Extracts changes summary from implementation tasks for PR description.
+   */
+  private async extractChangesSummary(sessionId: string): Promise<string> {
+    const implementTasks = await this.deps.taskService.listBySessionAndType(sessionId, TaskType.IMPLEMENT);
+    
+    const summaries: string[] = [];
+    for (const task of implementTasks) {
+      if (task.status === TaskStatus.DONE && task.output) {
+        const outputRecord = this.asRecord(task.output);
+        const changesSummary = outputRecord?.changesSummary;
+        if (typeof changesSummary === 'string' && changesSummary.trim()) {
+          summaries.push(changesSummary.trim());
+        }
+      }
+    }
+    
+    if (summaries.length === 0) {
+      return 'Implementation completed. See commit for details.';
+    }
+    
+    // If multiple implementation rounds, combine them
+    return summaries.join('\n\n---\n\n');
+  }
+
+  /**
+   * Builds PR description from session goal and changes summary.
+   */
+  private buildPrDescription(sessionId: string, goal: string, changesSummary: string): string {
+    const lines: string[] = [];
+    
+    lines.push('## Automated Implementation');
+    lines.push('');
+    lines.push(`**Session ID:** ${sessionId}`);
+    lines.push('');
+    
+    if (goal && goal.trim()) {
+      lines.push('## Goal');
+      lines.push('');
+      lines.push(goal.trim());
+      lines.push('');
+    }
+    
+    // Add changes summary (already in markdown format with real newlines)
+    lines.push(changesSummary);
+    lines.push('');
+    lines.push('---');
+    lines.push('*This pull request was automatically generated by AI workflow automation.*');
+    
+    return lines.join('\n');
+  }
+
   private extractRepoUrlFromScmRecord(scm: Record<string, unknown>): string {
     const candidates = [scm.repoUrl, scm.url, scm.repositoryUrl, scm.repo];
     for (const candidate of candidates) {
@@ -911,6 +1074,21 @@ export class OrchestrationService {
     return planFilePath;
   }
 
+  /**
+   * Writes changes summary to ao/GENERATE.md for reference.
+   */
+  private async writeGenerateSummaryFile(sessionId: string, workspaceId: string, changesSummary: string): Promise<void> {
+    const outputDir = await this.ensureSessionOutputDir(sessionId, workspaceId);
+    const generateFilePath = path.join(outputDir, 'GENERATE.md');
+    
+    // Content is already in plain markdown format with real newlines
+    await fs.writeFile(generateFilePath, changesSummary, 'utf8');
+    this.log('orchestrator wrote generate summary file', {
+      sessionId,
+      generateFilePath,
+    });
+  }
+
   private extractPlanText(output: Record<string, unknown>): string {
     if (typeof output.plan === 'string' && output.plan.trim()) {
       return output.plan;
@@ -934,10 +1112,22 @@ export class OrchestrationService {
       updatedAt: Date.now(),
     });
 
+    // Gather completion summary for UI display
+    const changesSummary = await this.extractChangesSummary(sessionId).catch(() => '');
+    
+    // Find PR URL from SCM_PR_CREATED event if it exists
+    const events = await this.deps.eventService.listBySessionId(sessionId);
+    const prEvent = events.find((e: { type: string; payload: any }) => e.type === 'SCM_PR_CREATED');
+    const prUrl = prEvent && typeof prEvent.payload.url === 'string' ? prEvent.payload.url : null;
+    
     await this.deps.eventService.emit({
       sessionId,
       type: 'SESSION_COMPLETED',
-      payload: {},
+      payload: {
+        prUrl: prUrl || null,
+        changesSummary: changesSummary || null,
+        finalStep: this.config.steps[this.config.steps.length - 1],
+      },
     });
   }
 

@@ -80,6 +80,7 @@ const STREAM_EVENT_TYPES = [
   'SESSION_STARTED',
   'PLAN_COMPLETED',
   'IMPLEMENT_COMPLETED',
+  'REACT_COMPLETED',
   'TEST_FAILED',
   'TEST_PASSED',
   'REVIEW_COMPLETED',
@@ -124,21 +125,11 @@ function normalizeTaskTitle(text: string): string {
 }
 
 function toAssistantMessage(result: Extract<ChatApiResponse, { kind: 'task' }>): string {
-  const eventTrail = result.events.length ? result.events.map((event) => event.type).join(' -> ') : 'No events captured yet.';
   const kickoff = result.status === 'running'
-    ? 'Started work on your task. You can follow execution logs on the right panel.'
-    : 'Task intake completed. You can follow execution logs on the right panel.';
-  return [
-    kickoff,
-    '',
-    result.summary,
-    '',
-    `Session: ${result.sessionId}`,
-    `Status: ${result.status}`,
-    `Current step: ${result.currentStep}`,
-    `Progress: ${result.progress}%`,
-    `Events: ${eventTrail}`,
-  ].join('\n');
+    ? '✨ **Got it!** I\'ve started working on this.\n\nYou can follow the execution in real-time on the right panel.'
+    : '📋 **Task received!** Processing your request...\n\nYou can follow progress on the right panel.';
+  
+  return kickoff;
 }
 
 function toSessionStatusFromEvent(eventType: string, currentStatus: string): string {
@@ -650,6 +641,45 @@ export default function ChatPage() {
           const nextEvents = [...session.events, parsed].sort((a, b) => a.createdAt - b.createdAt);
           const cappedEvents = nextEvents.length > 400 ? nextEvents.slice(nextEvents.length - 400) : nextEvents;
           const isActiveSession = activeSessionIdRef.current === sessionId;
+          
+          // Add completion/failure messages when workflow finishes
+          if (isActiveSession) {
+            if (parsed.type === 'SESSION_COMPLETED') {
+              const prUrl = typeof parsed.payload.prUrl === 'string' ? parsed.payload.prUrl : null;
+              const changesSummary = typeof parsed.payload.changesSummary === 'string' ? parsed.payload.changesSummary : null;
+              
+              let completionContent = '✅ **Task completed successfully!**\n\n';
+              
+              if (changesSummary) {
+                completionContent += `**What was done:**\n${changesSummary}\n\n`;
+              }
+              
+              if (prUrl) {
+                completionContent += `🔗 **Pull Request:** ${prUrl}\n\n`;
+              }
+              
+              completionContent += 'Check the execution logs on the right for full details.';
+              
+              const completionMessage: ChatMessage = {
+                id: `completion_${Date.now()}`,
+                role: 'assistant',
+                content: completionContent,
+                createdAt: Date.now(),
+                sessionId: sessionId,
+              };
+              setMessages((prev) => [...prev, completionMessage]);
+            } else if (['COMMAND_FAILED', 'TEST_FAILED', 'REVIEW_FAILED', 'SCM_PIPELINE_FAILED'].includes(parsed.type)) {
+              const failureMessage: ChatMessage = {
+                id: `failure_${Date.now()}`,
+                role: 'assistant',
+                content: `⚠️ **Task encountered an issue**\n\nThe workflow hit a problem during execution. Check the logs on the right for details. I may retry automatically depending on the failure type.`,
+                createdAt: Date.now(),
+                sessionId: sessionId,
+              };
+              setMessages((prev) => [...prev, failureMessage]);
+            }
+          }
+          
           return {
             ...previous,
             [sessionId]: {

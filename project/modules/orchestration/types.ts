@@ -5,6 +5,7 @@ export type WorkflowStep =
   | 'PREPARE'       // Pull code and prepare worktree
   | 'PLANNING'      // Create implementation plan
   | 'IMPLEMENTATION' // Generate code changes
+  | 'REACT'         // ReAct agent - combined reasoning and acting (replaces PLANNING + IMPLEMENTATION)
   | 'TESTING'       // Run tests and verification
   | 'REVIEW'        // Code review and quality checks
   | 'PUBLISH'       // Push changes and create PR
@@ -48,6 +49,7 @@ export const STEP_COMPLETION_EVENTS: Record<WorkflowStep, string> = {
   'PREPARE': 'SCM_WORKSPACE_PREPARED',
   'PLANNING': 'PLAN_COMPLETED',
   'IMPLEMENTATION': 'IMPLEMENT_COMPLETED',
+  'REACT': 'REACT_COMPLETED',
   'TESTING': 'TEST_PASSED',
   'REVIEW': 'REVIEW_COMPLETED',
   'PUBLISH': 'SCM_PR_CREATED',

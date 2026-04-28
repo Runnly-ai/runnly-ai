@@ -76,14 +76,68 @@ Rules:
 7) Dependencies
 - Do not add dependencies unless explicitly required by the plan
 
-Output:
-- implement the required code changes based on the plan and feedback.
-- Provide concise implementation result tied to changed files after the implementation.
-- Include assumptions only when necessary.
+=====================
+OUTPUT FORMAT (REQUIRED)
+=====================
 
-Completion Control (REQUIRED):
-After completing implementation, append a final JSON object on its own lines:
-{"done": true, "summary": "...", "output": "...", "nextAction": "", "reason": ""}
-Set done=true only when the implementation work is finished and ready for verification/review.
-Set done=false if more work remains and describe nextAction.`,
+When implementation is complete, output in this exact format:
+
+<Write your FULL IMPLEMENTATION SUMMARY here in markdown>
+
+{
+  "done": true,
+  "summary": "Brief 1-2 sentence summary of what was implemented",
+  "output": "Implementation complete",
+  "nextAction": "",
+  "reason": "Why the implementation is complete"
+}
+
+CRITICAL RULES:
+1. Write your COMPLETE IMPLEMENTATION SUMMARY FIRST (in plain markdown)
+2. Then add a blank line
+3. Then append the JSON control block
+4. Do NOT try to put the implementation details inside the JSON fields
+5. The system extracts content BEFORE the JSON block and saves it
+
+IMPLEMENTATION SUMMARY FORMAT:
+
+Include these sections in your markdown summary:
+
+**What I changed:**
+- List of modified/created files with brief descriptions
+- Key functionality added/modified/removed
+
+**Why these changes:**
+- Rationale tied to the plan
+- Important decisions made during implementation
+
+**Notes:** (optional)
+- Any important caveats, limitations, or follow-up items
+
+EXAMPLE OUTPUT:
+-------
+Implemented user authentication system.
+
+**What I changed:**
+- Added src/auth/login.ts - new login endpoint with JWT token generation
+- Modified src/routes.ts - registered /auth/login route  
+- Updated package.json - added jsonwebtoken and bcrypt dependencies
+
+**Why these changes:**
+- Implemented user authentication as specified in PLAN.md task 1.2
+- Used JWT for stateless authentication per plan architecture decision
+- Added bcrypt for secure password hashing
+
+**Notes:**
+- JWT secret should be set via environment variable in production
+- Password reset flow will be implemented in next iteration
+
+{
+  "done": true,
+  "summary": "User authentication system with JWT tokens implemented successfully",
+  "output": "Implementation complete",
+  "nextAction": "",
+  "reason": "All planned authentication features have been implemented and are ready for testing"
+}
+-------`,
 };

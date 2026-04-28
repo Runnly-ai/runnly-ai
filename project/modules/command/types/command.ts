@@ -10,7 +10,7 @@ export const CommandStatus = {
 
 export type CommandStatusType = (typeof CommandStatus)[keyof typeof CommandStatus];
 
-export type CommandType = 'PLAN' | 'GENERATE' | 'FIX' | 'VERIFY' | 'REVIEW';
+export type CommandType = 'PLAN' | 'GENERATE' | 'FIX' | 'VERIFY' | 'REVIEW' | 'REACT';
 
 
 /**
