@@ -24,7 +24,7 @@ import { Logger } from '../../modules/utils/logger';
 import { CommandService } from '../../modules/command';
 import { EventService } from '../../modules/event';
 import { TaskService } from '../../modules/task';
-import { SessionService } from '../../modules/session';
+import { SessionRepo, SessionService } from '../../modules/session';
 import { LocalWorkspace } from '../../modules/workspace';
 import { CommandQueue } from '../../modules/infra';
 import { Command, CommandType } from '../../modules/command';
@@ -350,6 +350,7 @@ export function createAgentRuntime(
     commandService: CommandService;
     eventService: EventService;
     taskService: TaskService;
+    sessionRepo: SessionRepo;
     workspace: LocalWorkspace;
   }
 ): AgentRuntime {
@@ -359,6 +360,7 @@ export function createAgentRuntime(
     eventService: deps.eventService,
     resolveAgent: async (command: Command) => createAgentForCommandType(config, logger, command.type),
     taskService: deps.taskService,
+    sessionRepo: deps.sessionRepo,
     workspace: deps.workspace,
     logger,
     logWorkflowProgress: config.logWorkflowProgress,

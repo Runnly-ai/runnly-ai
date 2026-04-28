@@ -4,6 +4,7 @@ import { CommandQueue } from '../../infra';
 import { CommandService } from '../../command';
 import { EventService } from '../../event';
 import { TaskService } from '../../task';
+import { SessionRepo } from '../../session';
 import { Workspace } from '../../workspace';
 import { Logger } from '../../utils/logger';
 import { Command } from '../../command';
@@ -14,6 +15,7 @@ describe('AgentRuntime', () => {
   let mockCommandService: CommandService;
   let mockEventService: EventService;
   let mockTaskService: TaskService;
+  let mockSessionRepo: SessionRepo;
   let mockWorkspace: Workspace;
   let mockLogger: Logger;
   let mockResolveAgent: (command: Command) => any;
@@ -38,6 +40,13 @@ describe('AgentRuntime', () => {
     } as any;
 
     mockTaskService = {} as any;
+    mockSessionRepo = {
+      connect: vi.fn(),
+      create: vi.fn(),
+      getById: vi.fn(),
+      update: vi.fn(),
+      close: vi.fn(),
+    } as any;
     mockWorkspace = {} as any;
 
     mockLogger = {
@@ -53,6 +62,7 @@ describe('AgentRuntime', () => {
       eventService: mockEventService,
       resolveAgent: mockResolveAgent,
       taskService: mockTaskService,
+      sessionRepo: mockSessionRepo,
       workspace: mockWorkspace,
       logger: mockLogger,
       logWorkflowProgress: false,
@@ -73,6 +83,7 @@ describe('AgentRuntime', () => {
         eventService: mockEventService,
         resolveAgent: mockResolveAgent,
         taskService: mockTaskService,
+        sessionRepo: mockSessionRepo,
         workspace: mockWorkspace,
         logger: mockLogger,
         logWorkflowProgress: true,
@@ -89,6 +100,7 @@ describe('AgentRuntime', () => {
         eventService: mockEventService,
         resolveAgent: mockResolveAgent,
         taskService: mockTaskService,
+        sessionRepo: mockSessionRepo,
         workspace: mockWorkspace,
         logger: mockLogger,
         logWorkflowProgress: false,

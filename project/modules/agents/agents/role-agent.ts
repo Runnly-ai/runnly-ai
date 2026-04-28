@@ -4,6 +4,7 @@ import { AgentProviderId, AgentProviderRunResult, isAgentProviderId } from './ty
 import { AgentProviderRouter } from './providers/agent-provider-router';
 import { createDefaultSkillRegistry } from '../skills/default-skill-registry';
 import { SkillMetadata } from '../skills/types';
+import { nowTs } from '../../utils/time';
 
 type RoleTaskStatus = 'DONE' | 'FAILED';
 
@@ -52,6 +53,7 @@ export abstract class RoleAgent extends Agent {
     await context.taskService.markInProgress(taskId);
     const task = await context.taskService.getById(taskId);
     const skillContext = await this.resolveSkillContextWithRegistry(command, context);
+    const skillReminders = await this.buildSkillReminders(command, context);
     
     // Prepare clean input for provider - no prompt building here
     const input = {
@@ -65,7 +67,7 @@ export abstract class RoleAgent extends Agent {
       taskTitle: task?.title,
       taskDescription: this.extractTaskDescription(command),
       projectContext: this.extractProjectContext(command),
-      skillContext,
+      skillContext: [skillReminders, skillContext].filter(Boolean).join('\n\n') || undefined,
       requirements: this.extractRequirements(command),
       constraints: this.extractConstraints(command),
       
@@ -138,6 +140,7 @@ export abstract class RoleAgent extends Agent {
       role: this.id,
       provider: result.provider,
       execution: this.toExecutionOutput(result),
+      invokedSkills: await this.resolveAndPersistInvokedSkills(command, context, skillContext),
       ...decision.taskOutput,
     };
 
@@ -322,6 +325,137 @@ export abstract class RoleAgent extends Agent {
       '',
       ...lines,
     ].join('\n');
+  }
+
+  protected extractInvokedSkills(skillContext?: string): string[] {
+    if (!skillContext) {
+      return [];
+    }
+    const matches = skillContext.match(/^[a-z0-9-_/.]+/gim) || [];
+    return Array.from(new Set(matches.map((item) => item.trim()).filter(Boolean)));
+  }
+
+  protected async resolveAndPersistInvokedSkills(
+    command: Command,
+    context: AgentContext,
+    skillContext?: string
+  ): Promise<string[]> {
+    const invoked = this.extractInvokedSkills(skillContext);
+    const persisted = await this.loadPersistedInvokedSkills(command.sessionId, context);
+    const merged = Array.from(new Set([...persisted, ...invoked]));
+
+    await this.persistInvokedSkills(command.sessionId, context, merged, command.id);
+    return merged;
+  }
+
+  protected async loadPersistedInvokedSkills(sessionId: string, context: AgentContext): Promise<string[]> {
+    const sessionRepo = context.sessionRepo;
+    if (!sessionRepo) {
+      return [];
+    }
+    const session = await sessionRepo.getById(sessionId);
+    const raw = session?.context?.metadata?.invokedSkills;
+    if (!Array.isArray(raw)) {
+      return [];
+    }
+    return raw.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).map((item) => item.trim());
+  }
+
+  protected async persistInvokedSkills(
+    sessionId: string,
+    context: AgentContext,
+    invokedSkills: string[],
+    commandId: string
+  ): Promise<void> {
+    const sessionRepo = context.sessionRepo;
+    if (!sessionRepo) {
+      return;
+    }
+
+    const session = await sessionRepo.getById(sessionId);
+    if (!session) {
+      return;
+    }
+
+    const sessionContext = session.context && typeof session.context === 'object' ? { ...session.context } : {};
+    const metadata = sessionContext.metadata && typeof sessionContext.metadata === 'object'
+      ? { ...sessionContext.metadata }
+      : {};
+
+    metadata.invokedSkills = invokedSkills;
+    metadata.lastSkillInvocation = {
+      commandId,
+      agentId: this.id,
+      updatedAt: nowTs(),
+    };
+    sessionContext.metadata = metadata;
+
+    await sessionRepo.update(sessionId, {
+      context: sessionContext,
+      updatedAt: nowTs(),
+    });
+  }
+
+  protected async buildSkillReminders(command: Command, context: AgentContext): Promise<string | undefined> {
+    const skillsDir = this.options.skillsDir || process.env.AGENT_SKILLS_DIR || '';
+    if (!skillsDir.trim()) {
+      const invokedSkills = await this.loadPersistedInvokedSkills(command.sessionId, context);
+      return invokedSkills.length > 0
+        ? [
+            '## Invoked Skills',
+            'The following skills were previously invoked in this session and should remain active:',
+            ...invokedSkills.map((skillId) => `- ${skillId}`),
+          ].join('\n')
+        : undefined;
+    }
+
+    try {
+      const registry = await createDefaultSkillRegistry({
+        skillsDir,
+        logger: context.logger,
+      });
+      const candidates = registry.listCandidates();
+      if (candidates.length === 0) {
+        return undefined;
+      }
+
+      const query = `${command.type} ${JSON.stringify(command.payload)} ${this.resolveSkillContext(command) || ''}`;
+      const scored = candidates
+        .map((skill) => {
+          const haystack = `${skill.id} ${skill.title} ${skill.description} ${(skill.tools || []).join(' ')} ${(skill.skills || []).join(' ')}`.toLowerCase();
+          const tokens = query.toLowerCase().split(/[^a-z0-9-_/.]+/).filter(Boolean);
+          const score = tokens.reduce((total, token) => total + (haystack.includes(token) ? 1 : 0), 0);
+          return { skill, score };
+        })
+        .filter((item) => item.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 8)
+        .map((item) => item.skill);
+
+      const invokedSkills = await this.loadPersistedInvokedSkills(command.sessionId, context);
+      const sections: string[] = [];
+
+      if (invokedSkills.length > 0) {
+        sections.push([
+          '## Invoked Skills',
+          'The following skills were previously invoked in this session and should remain active:',
+          ...invokedSkills.map((skillId) => `- ${skillId}`),
+        ].join('\n'));
+      }
+
+      if (scored.length > 0) {
+        sections.push([
+          '## Skills relevant to your task',
+          'The following skills were matched from the configured skill roots for this turn:',
+          ...scored.map((skill) => `- ${skill.id}: ${skill.title} — ${skill.description}`),
+        ].join('\n'));
+      }
+
+      return sections.length > 0 ? sections.join('\n\n') : undefined;
+    } catch (error: unknown) {
+      context.logger.error('[role-agent] failed to build skill reminders', error);
+      return undefined;
+    }
   }
 
   /**

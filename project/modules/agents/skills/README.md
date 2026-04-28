@@ -52,6 +52,8 @@ Supported frontmatter:
 ### 1. Discovery
 
 `loader.ts` scans configured skill directories recursively and finds files named `SKILL.md` or `skill.md`.
+Discovery is automatic when `AGENT_SKILLS_DIR` is set. The default fallback is `./.skills`, and
+multiple roots can be provided with the platform path separator.
 
 ### 2. Parsing
 
@@ -70,11 +72,16 @@ It also resolves `skills: [...]` dependencies into an ordered chain.
 
 `prompt.ts` builds a compact skill-catalog prompt when LLM routing is needed.
 It also builds an execution prompt that includes the resolved dependency chain and tool policy.
+The normal role-agent path also adds a per-turn "Skills relevant to your task" reminder block.
+Previously invoked skills are also restored from session metadata so the reminder block survives
+resume/compaction.
 
 ### 6. Execution
 
 `markdown-skill.ts` loads the full markdown document, optionally loads local scripts, and produces a task result.
 Skills are executed as part of the normal agent runtime, not through a separate routed skill agent.
+Skill invocations are persisted on the session record via `session.context.metadata.invokedSkills`
+so the agent can reload them on later turns.
 
 ## Execution modes
 
@@ -120,9 +127,12 @@ allowed by the skill policy, and rejects calls outside that set.
 
 - The normal agent runtime loads skills from the configured root.
 - The agent registry / provider flow can summarize available skills into context.
+- The runtime adds a per-turn skill reminder section for matched skills.
+- Previously invoked skills are persisted in session metadata and reloaded on resume/compaction.
 - The skill registry chooses a compatible skill from metadata.
 - The skill executes using `AgentContext`, `Command`, and optional `LlmClient`.
 - The result is written back through task and event services.
+- Skill execution remains inline with the normal agent path; there is no separate routed SkillAgent.
 
 ## Configured skill roots
 
@@ -160,9 +170,30 @@ does not expose.
 The runtime can also provide a skill-scoped tool executor. That wrapper exposes only the filtered
 tool list and rejects any attempted call outside the skill’s allowed set.
 
+## Multiple skill roots
+
+`AGENT_SKILLS_DIR` may contain a path list separated by the platform path separator.
+The loader resolves roots in order and loads them in that order, so earlier roots take precedence
+when the same skill id appears more than once.
+This lets a user overlay local skills on top of shared skills without changing the format.
+
 ## Dependency chaining
 
 A skill may declare `skills: [...]` to compose other skills. The registry resolves that list into an
 ordered chain, and the execution prompt includes the full chain so the model can follow it in order.
 
 This keeps the system aligned with the reference project’s skill architecture while remaining native to our runtime.
+
+## Session persistence
+
+When a skill is invoked, the agent records it in the session context:
+
+- `session.context.metadata.invokedSkills`
+- `session.context.metadata.lastSkillInvocation`
+
+The session repository persists that metadata together with the session object:
+
+- Redis: stored as the serialized session JSON
+- In-memory: stored in the session map
+
+On later turns, the role agent reloads that metadata and restores the active skill reminders.

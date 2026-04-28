@@ -3,6 +3,7 @@ import { EventService } from '../../../event';
 import { TaskService } from '../../../task';
 import { Workspace } from '../../../workspace';
 import { Command } from '../../../command';
+import { SessionRepo } from '../../../session';
 
 /**
  * Shared dependencies passed to all agent executions.
@@ -10,6 +11,7 @@ import { Command } from '../../../command';
 export interface AgentContext {
   taskService: TaskService;
   eventService: EventService;
+  sessionRepo?: SessionRepo;
   workspace: Workspace;
   logger: Logger;
   workspaceRoot?: string;

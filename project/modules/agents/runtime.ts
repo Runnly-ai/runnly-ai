@@ -2,6 +2,7 @@ import { Logger } from '../utils/logger';
 import { CommandService } from '../command';
 import { EventService } from '../event';
 import { TaskService } from '../task';
+import { SessionRepo } from '../session';
 import { Workspace } from '../workspace';
 import { CommandQueue } from '../infra';
 import { Command } from '../command';
@@ -13,6 +14,7 @@ interface RuntimeDeps {
   eventService: EventService;
   resolveAgent: (command: Command) => Promise<Agent | null> | Agent | null;
   taskService: TaskService;
+  sessionRepo: SessionRepo;
   workspace: Workspace;
   logger: Logger;
   logWorkflowProgress: boolean;
@@ -150,6 +152,7 @@ export class AgentRuntime {
       await agent.execute(command, {
         taskService: this.deps.taskService,
         eventService: this.deps.eventService,
+        sessionRepo: this.deps.sessionRepo,
         workspace: this.deps.workspace,
         logger: this.deps.logger,
         agentDebugLogging: this.deps.logAgentDebug,

@@ -147,6 +147,7 @@ export async function createApplication(
     commandService,
     eventService,
     taskService,
+    sessionRepo: repos.sessionRepo,
     workspace,
   });
 
