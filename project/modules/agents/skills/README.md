@@ -147,12 +147,12 @@ The loader recursively scans each configured root and discovers:
 - `SKILL.md`
 - `skill.md`
 
-The repository includes a sample skill at:
+The repository includes sample skills at:
 
 - [`project/.skills/sample-inspect/SKILL.md`](../../../.skills/sample-inspect/SKILL.md)
 - [`project/.skills/demo-skill/SKILL.md`](../../../.skills/demo-skill/SKILL.md)
 
-Use it as a smoke test for discovery, frontmatter parsing, and tool-policy enforcement.
+Use them as smoke tests for discovery, frontmatter parsing, and tool-policy enforcement.
 
 The `demo-skill` folder also includes:
 

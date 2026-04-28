@@ -83,16 +83,11 @@ export const reactWorkflow: WorkflowConfig = {
 export const fastScmWorkflow: WorkflowConfig = {
   steps: [
     'PREPARE',
-    'PLANNING',
-    'IMPLEMENTATION',
+    'REACT',
     'PUBLISH',
     'SCM_PIPELINE',
     'SCM_REVIEW',
   ],
-  retryOnFailure: {
-    TESTING: true,
-    REVIEW: true,
-  },
 };
 
 /**
