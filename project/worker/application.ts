@@ -195,6 +195,33 @@ async function processSession(
   isRunning: () => boolean
 ): Promise<void> {
   let sessionCompleted = false;
+  let executingCommands = false;
+  let rerunRequested = false;
+
+  const runSessionCommandsSerialized = async () => {
+    if (executingCommands) {
+      rerunRequested = true;
+      return;
+    }
+
+    executingCommands = true;
+    try {
+      do {
+        rerunRequested = false;
+        await executeSessionCommands(
+          sessionId,
+          commandService,
+          eventService,
+          taskService,
+          workspace,
+          logger,
+          config
+        );
+      } while (rerunRequested);
+    } finally {
+      executingCommands = false;
+    }
+  };
   
   // Subscribe to events for this session and handle them with orchestration
   const unsubscribe = await eventService.subscribe(async (event) => {
@@ -219,15 +246,7 @@ async function processSession(
     }
     
     // After orchestration handles the event, execute any pending commands inline
-    await executeSessionCommands(
-      sessionId,
-      commandService,
-      eventService,
-      taskService,
-      workspace,
-      logger,
-      config
-    );
+    await runSessionCommandsSerialized();
   });
 
   try {
@@ -247,15 +266,7 @@ async function processSession(
       const sessionStartedEvent = events.find(e => e.type === 'SESSION_STARTED');
       if (sessionStartedEvent) {
         await orchestrationService.handleEvent(sessionStartedEvent);
-        await executeSessionCommands(
-          sessionId,
-          commandService,
-          eventService,
-          taskService,
-          workspace,
-          logger,
-          config
-        );
+        await runSessionCommandsSerialized();
       }
     }
     
@@ -302,9 +313,10 @@ async function executeSessionCommands(
   for (const command of pending) {
     // Atomically claim the command by marking it RUNNING before executing
     // This prevents race conditions where multiple event handlers try to execute the same command
-    const claimed = await commandService.markRunning(command.id);
+    const claimToken = `worker-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    const claimed = await commandService.claimPending(command.id, claimToken);
     
-    if (!claimed || claimed.status !== 'RUNNING') {
+    if (!claimed || claimed.status !== 'RUNNING' || claimed.claimToken !== claimToken) {
       // Command was already claimed by another handler or doesn't exist
       logger.info('command already claimed or not found, skipping', {
         commandId: command.id,

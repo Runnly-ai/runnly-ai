@@ -102,12 +102,19 @@ export class LlmAgentProvider implements AgentProvider {
       for (let step = 0; step < this.maxToolSteps; step++) {
         let completion: OpenAI.Chat.Completions.ChatCompletion;
         try {
-          completion = await chatClient.chat.completions.create({
+          const request: OpenAI.Chat.Completions.ChatCompletionCreateParams = {
             model,
             messages,
             ...(tools ? { tools, tool_choice: 'auto' } : {}),
             temperature: 0.2,
-          });
+          };
+          if (this.id === 'deepseek') {
+            (request as OpenAI.Chat.Completions.ChatCompletionCreateParams & {
+              extra_body?: Record<string, unknown>;
+            }).extra_body = { "thinking": { "type": "disabled" } };
+          }
+
+          completion = await chatClient.chat.completions.create(request);
         } catch (error: unknown) {
           this.logProviderError('provider completion call failed', runId, model, step, error, input);
           throw error;
@@ -169,11 +176,21 @@ export class LlmAgentProvider implements AgentProvider {
         }
 
         // Append assistant tool-call message before corresponding tool responses.
-        messages.push({
+        const assistantMessage: OpenAI.Chat.Completions.ChatCompletionAssistantMessageParam & {
+          reasoning_content?: string;
+        } = {
           role: 'assistant',
           content: message.content ?? null,
           tool_calls: toolCalls,
-        });
+        };
+        const reasoningContent =
+          this.id === 'deepseek'
+            ? this.extractReasoningContent(message)
+            : undefined;
+        if (reasoningContent) {
+          assistantMessage.reasoning_content = reasoningContent;
+        }
+        messages.push(assistantMessage);
 
         // Execute all tool calls
         for (const toolCall of toolCalls) {
@@ -573,6 +590,14 @@ export class LlmAgentProvider implements AgentProvider {
     } catch {
       return {};
     }
+  }
+
+  private extractReasoningContent(message: unknown): string | undefined {
+    if (!message || typeof message !== 'object') {
+      return undefined;
+    }
+    const value = message as Record<string, unknown>;
+    return typeof value.reasoning_content === 'string' ? value.reasoning_content : undefined;
   }
 
   private truncate(value: string, maxLen: number): string {

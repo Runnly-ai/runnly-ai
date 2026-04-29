@@ -1,6 +1,7 @@
 
 import { Command } from './types/command';
 import { CommandRepo } from './types/command-repo';
+import { CommandStatus } from './types/command';
 
 /**
  * In-memory command repository.
@@ -33,6 +34,26 @@ export class InMemoryCommandRepo implements CommandRepo {
       return null;
     }
     const next = { ...this.commands[idx], ...patch };
+    this.commands[idx] = next;
+    return next;
+  }
+
+  async claimPending(id: string, claimToken: string, claimedAt: number): Promise<Command | null> {
+    const idx = this.commands.findIndex((command) => command.id === id);
+    if (idx < 0) {
+      return null;
+    }
+    const current = this.commands[idx];
+    if (current.status !== CommandStatus.PENDING) {
+      return null;
+    }
+    const next: Command = {
+      ...current,
+      status: CommandStatus.RUNNING,
+      claimToken,
+      claimedAt,
+      updatedAt: claimedAt,
+    };
     this.commands[idx] = next;
     return next;
   }

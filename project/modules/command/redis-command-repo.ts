@@ -1,6 +1,6 @@
 import { createClient, RedisClientType } from 'redis';
 import { CommandRepo } from './types/command-repo';
-import { Command } from './types/command';
+import { Command, CommandStatus } from './types/command';
 /**
  * Redis-backed command repository with session index.
  */
@@ -56,6 +56,39 @@ export class RedisCommandRepo implements CommandRepo {
     const next = { ...current, ...patch };
     await this.client.hSet(this.commandsKey, id, JSON.stringify(next));
     return next;
+  }
+
+  async claimPending(id: string, claimToken: string, claimedAt: number): Promise<Command | null> {
+    const script = `
+local key = KEYS[1]
+local id = ARGV[1]
+local token = ARGV[2]
+local claimedAt = tonumber(ARGV[3])
+local raw = redis.call('HGET', key, id)
+if not raw then
+  return nil
+end
+local obj = cjson.decode(raw)
+if obj.status ~= 'PENDING' then
+  return nil
+end
+obj.status = 'RUNNING'
+obj.claimToken = token
+obj.claimedAt = claimedAt
+obj.updatedAt = claimedAt
+local next = cjson.encode(obj)
+redis.call('HSET', key, id, next)
+return next
+`;
+
+    const result = await this.client.eval(script, {
+      keys: [this.commandsKey],
+      arguments: [id, claimToken, String(claimedAt)],
+    });
+    if (!result || typeof result !== 'string') {
+      return null;
+    }
+    return JSON.parse(result) as Command;
   }
 
   /**

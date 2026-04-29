@@ -112,7 +112,7 @@ function getPresetModel(provider?: AgentProviderId): string | undefined {
     case AgentProviderId.Groq:
       return 'llama-3.3-70b-versatile';
     case AgentProviderId.DeepSeek:
-      return 'deepseek-chat';
+      return 'deepseek-v4-flash';
     case AgentProviderId.Qwen:
       return 'qwen3-max';
     case AgentProviderId.Doubao:

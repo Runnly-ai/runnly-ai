@@ -22,6 +22,8 @@ export interface Command {
   type: CommandType;
   payload: Record<string, unknown>;
   status: CommandStatusType;
+  claimToken?: string;
+  claimedAt?: number;
   retryCount: number;
   createdAt: number;
   updatedAt: number;

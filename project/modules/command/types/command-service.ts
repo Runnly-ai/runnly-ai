@@ -71,6 +71,10 @@ export class CommandService {
     });
   }
 
+  claimPending(commandId: string, claimToken: string): Promise<Command | null> {
+    return this.commandRepo.claimPending(commandId, claimToken, nowTs());
+  }
+
   /**
    * @param commandId Command identifier.
    * @returns Updated command, or null if not found.
