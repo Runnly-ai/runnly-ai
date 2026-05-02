@@ -1,12 +1,12 @@
 # Manager Agent Implementation Plan
 
 ## Objective
-Deliver an opt-in manager-controlled workflow (`PLAN -> REACT -> VERIFY -> REVIEW`) while preserving current classic workflow behavior.
+Deliver a manager brief-and-handoff layer while preserving deterministic, human-configured workflow behavior.
 
 ## Scope
 - Add manager control-plane contracts and state machine.
 - Add typed stage-output parsing/validation with fallback.
-- Add orchestration path for manager mode.
+- Add orchestration path that consumes the configured workflow.
 - Keep worker agents compatible with minimal edits.
 
 ## Out of Scope
@@ -45,31 +45,28 @@ Files:
 - `project/modules/intake/user-intake-service.ts` (integration)
 
 Tasks:
-1. Define `ManagerBrief`, `ManagerPlan`, `ManagerDecision`, `StagePlan`.
-2. Implement deterministic policy:
-   - default sequence `PLAN -> REACT -> VERIFY -> REVIEW`
-   - fail loops to REACT
-   - max cycle guard
-3. Add persistence of manager state in session context.
+1. Define `ManagerBrief`, `ManagerDecision`, and handoff metadata.
+2. Implement deterministic policy for brief quality and clarification only.
+3. Add persistence of manager brief and open questions in session context.
 
 Acceptance:
-- Manager service can compute next stage from stage results.
+- Manager service can produce a validated brief from user input.
 - State is resumable from session context.
 
 ### WS3: Orchestration Integration (Opt-in)
 Files (likely):
 - orchestration transition handlers
 - command dispatch creation path
-- runtime config for workflow mode
+- runtime config for workflow definition
 
 Tasks:
-1. Add mode flag: `WORKFLOW_MODE=classic|manager` (default classic).
-2. Route manager mode sessions via manager transition logic.
+1. Read workflow selection from human config.
+2. Route sessions through the configured transition logic.
 3. Keep classic route untouched.
 
 Acceptance:
 - `classic` mode is identical to current behavior.
-- `manager` mode executes target sequence and loops correctly.
+- Configured workflows execute their target sequence and loops correctly.
 
 ### WS4: Intake Hardening (Manager-facing)
 Files:
@@ -90,16 +87,16 @@ Acceptance:
 Files:
 - intake tests (new)
 - role-agent parsing tests (new)
-- orchestration manager-mode tests (new)
+- orchestration workflow-definition tests (new)
 
 Tasks:
 1. Unit tests for schema parser/fallback.
-2. Unit tests for manager policy transitions.
-3. Integration test for `PLAN -> REACT -> VERIFY -> REVIEW` with fail loop.
-4. Add structured logs/metrics for manager decisions and stage validation errors.
+2. Unit tests for manager brief and clarification transitions.
+3. Integration test for the configured workflow with fail loop.
+4. Add structured logs/metrics for manager brief quality and stage validation errors.
 
 Acceptance:
-- Core manager transitions covered.
+- Core manager brief transitions covered.
 - No regressions in existing tests.
 
 ## Suggested Task Breakdown for Parallel Coding Agents
@@ -117,13 +114,13 @@ Acceptance:
 
 ## Rollout Strategy
 1. Merge behind feature flags with default classic path.
-2. Enable manager mode in dev/staging for selected sessions.
+2. Load workflow selection from human config in dev/staging.
 3. Compare success/failure loops, latency, and regression metrics.
-4. Gradually increase manager-mode traffic.
+4. Gradually increase usage of the configured workflow set.
 
 ## Done Definition
 1. Docs updated.
-2. Feature flag exists and defaults to classic.
-3. Manager mode functional end-to-end.
-4. Retry loop and max cycle guard validated.
+2. Workflow selection exists in human config and defaults to classic.
+3. Manager brief-and-handoff functional end-to-end.
+4. Retry loop and max cycle guard validated by configured workflow.
 5. All critical tests pass.

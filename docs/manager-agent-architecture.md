@@ -6,13 +6,13 @@ Draft v1 (for implementation handoff)
 ## Context
 Current system has a user intake agent and a multi-agent execution workflow (`PLAN -> GENERATE/FIX -> VERIFY -> REVIEW`) coordinated by orchestration events.
 
-We want the intake layer to become a true user-facing manager/orchestrator that controls sub-agent workflow decisions while keeping current worker agents stable.
+We want the intake layer to become a true user-facing manager that understands the request, produces a brief, and hands it to orchestration while keeping current worker agents stable.
 
 ## Goals
-1. Make intake the client manager for execution workflows.
+1. Make intake the client-facing manager for request understanding and handoff.
 2. Keep existing worker agents (`PlanningRoleAgent`, `Generate/ReAct`, `Verify`, `Review`) reusable.
 3. Improve reliability with typed contracts between manager and workers.
-4. Support an opt-in manager-controlled workflow mode without breaking current flow.
+4. Keep workflow selection deterministic and human-configured.
 
 ## Non-Goals
 1. No full rewrite of orchestration runtime.
@@ -22,16 +22,16 @@ We want the intake layer to become a true user-facing manager/orchestrator that 
 ## Target Architecture
 
 ### Roles
-- Manager Agent (control plane): user-facing, decides workflow and dispatches stages.
+- Manager Agent (control plane): user-facing, captures intent, clarifies gaps, and produces a brief.
 - Worker Agents (data plane): perform stage execution and return structured stage results.
 
 ### Control/Data Flow
 1. User message -> `ManagerService`.
 2. `ManagerService` builds validated `ManagerBrief`.
-3. `ManagerService` decides workflow mode and creates `ManagerPlan`.
-4. Orchestrator/dispatcher executes stage commands from plan.
+3. Orchestration selects the configured workflow path.
+4. Orchestrator/dispatcher executes stage commands from that workflow.
 5. Worker emits `StageResultEnvelope`.
-6. `ManagerService` evaluates result and decides `advance | retry | clarify | abort`.
+6. Orchestration applies the configured transition policy.
 7. Loop until completion criteria met.
 
 ## Proposed Contracts
@@ -43,11 +43,12 @@ We want the intake layer to become a true user-facing manager/orchestrator that 
 - `acceptanceCriteria?: string[]`
 - `riskLevel: 'low' | 'medium' | 'high'`
 - `scmContext?: { provider?: string; repoUrl?: string; baseBranch?: string }`
-- `workflowMode: 'classic' | 'react_pipeline' | 'manager_controlled'`
+- `contextSignals?: Record<string, unknown>`
+- `openQuestions?: string[]`
 
-### ManagerPlan
-- `planId: string`
-- `version: '1'`
+### Workflow Configuration
+- `workflowMode: 'classic' | 'react_pipeline' | 'manager_controlled'`
+- `configuredByHuman: true`
 - `stages: StagePlan[]`
 - `maxCycles: number`
 
@@ -70,15 +71,15 @@ We want the intake layer to become a true user-facing manager/orchestrator that 
 - `payload?: Record<string, unknown>`
 
 ## Workflow Policy (initial)
-1. Default manager-controlled sequence: `PLAN -> REACT -> VERIFY -> REVIEW`.
-2. `VERIFY FAIL -> REACT`.
-3. `REVIEW FAIL -> REACT`.
-4. Stop when `VERIFY PASS` and `REVIEW PASS`.
+1. Workflow sequence is defined by human configuration, not by the manager agent.
+2. The manager agent only supplies the brief and handoff context.
+3. Orchestration follows the configured transition policy exactly.
+4. `VERIFY FAIL` and `REVIEW FAIL` transitions are determined by the configured workflow.
 5. Abort if cycle count exceeds `maxCycles`.
 
 ## Backward Compatibility Strategy
 1. Preserve current `classic` orchestration path as default.
-2. Introduce feature flag/config gate for manager-controlled path.
+2. Keep workflow selection in human config or feature flags, not agent output.
 3. Keep worker prompt/output behavior and add parser fallback.
 4. Keep existing events and payloads where possible.
 
@@ -86,23 +87,23 @@ We want the intake layer to become a true user-facing manager/orchestrator that 
 
 ### Intake / Manager
 - Evolve intake output to produce `ManagerBrief`.
-- Add decision state machine: `INTAKE -> CLARIFY -> PLAN_WORKFLOW -> DISPATCH -> EVALUATE -> COMPLETE`.
+- Add decision state machine: `INTAKE -> CLARIFY -> BRIEF -> HANDOFF -> COMPLETE`.
 
 ### Agent Output Contracts
 - Add typed stage-output schemas and parser utilities.
 - Parse structured outputs first, fallback to current regex/string extraction.
 
 ### Orchestration
-- Add optional manager-controlled routing for stage transitions.
+- Add routing based on the configured workflow definition.
 - Preserve current command/event flow for classic mode.
 
 ## Persistence Additions (session context)
 - `manager.brief`
-- `manager.plan`
-- `manager.currentStage`
-- `manager.cycleCount`
-- `manager.lastDecision`
-- `manager.stageHistory[]`
+- `manager.openQuestions`
+- `workflow.config`
+- `workflow.currentStage`
+- `workflow.cycleCount`
+- `workflow.stageHistory[]`
 
 ## Observability
 Track metrics/log fields:
@@ -114,7 +115,7 @@ Track metrics/log fields:
 
 ## Risks and Mitigations
 1. Risk: manager logic conflicts with existing orchestrator transitions.
-- Mitigation: isolate behind mode flag and explicit transition table.
+- Mitigation: keep workflow ownership in deterministic config and explicit transition table.
 
 2. Risk: worker outputs are inconsistent for strict schemas.
 - Mitigation: parser fallback + phased prompt tightening.
@@ -124,11 +125,11 @@ Track metrics/log fields:
 
 ## Rollout Plan
 1. Phase 1: contracts + parser + no-op manager scaffolding.
-2. Phase 2: manager-controlled routing (opt-in).
+2. Phase 2: human-configured workflow wiring.
 3. Phase 3: prompt/UX refinements and telemetry tuning.
 
 ## Success Criteria
-1. Manager mode can run `PLAN -> REACT -> VERIFY -> REVIEW` end-to-end.
-2. On verify/review failure, system routes back to REACT up to max cycles.
+1. Manager mode can produce a brief and hand it off cleanly.
+2. On verify/review failure, the configured workflow routes correctly up to max cycles.
 3. No regression in classic mode.
 4. Structured stage outputs validated with fallback compatibility.
