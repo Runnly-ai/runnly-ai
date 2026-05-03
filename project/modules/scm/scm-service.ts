@@ -7,6 +7,9 @@ import {
   PrepareWorkspaceInput,
   PublishChangesInput,
   PublishChangesResult,
+  PullRequestFeedbackInput,
+  PipelineFailureInfo,
+  ReviewCommentInfo,
   ScmProvider,
   ScmProviderType,
   ScmRepositoryRef,
@@ -232,6 +235,36 @@ export class ScmService {
       pullRequestNumber: result.pullRequest.number,
     });
     return result;
+  }
+
+  /**
+   * Collects pipeline failures and review comments for an existing pull request.
+   */
+  async collectPullRequestFeedback(
+    input: PullRequestFeedbackInput
+  ): Promise<{ pipelineFailures: PipelineFailureInfo[]; reviewComments: ReviewCommentInfo[] }> {
+    const provider = this.resolveProvider(input.repo.provider);
+    const token = this.resolveToken(input.repo.provider, input.token);
+    this.requireTokenForProvider(input.repo.provider, token);
+
+    this.log('scm feedback collection started', {
+      repository: input.repo.displayName,
+      pullRequestNumber: input.pullRequest.number,
+    });
+
+    const [pipelineFailures, reviewComments] = await Promise.all([
+      provider.listPipelineFailures({ repo: input.repo, token, pullRequest: input.pullRequest }),
+      provider.listReviewComments({ repo: input.repo, token, pullRequest: input.pullRequest }),
+    ]);
+
+    this.log('scm feedback collection completed', {
+      repository: input.repo.displayName,
+      pullRequestNumber: input.pullRequest.number,
+      pipelineFailureCount: pipelineFailures.length,
+      reviewCommentCount: reviewComments.length,
+    });
+
+    return { pipelineFailures, reviewComments };
   }
 
   private resolveProvider(type: ScmProviderType): ScmProvider {

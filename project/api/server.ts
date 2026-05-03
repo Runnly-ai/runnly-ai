@@ -2,7 +2,7 @@ import express, { NextFunction, Request, Response } from 'express';
 import { SessionService } from '../modules/session';
 import { EventService } from '../modules/event';
 import { SessionContext } from '../modules/session';
-import { ScmWebhookService } from '../modules/scm';
+import { ScmService, ScmWebhookService } from '../modules/scm';
 import { UserIntakeService } from '../modules/intake';
 import { Logger } from '../modules/utils/logger';
 import { AuthService, PublicUser } from '../modules/auth';
@@ -48,6 +48,7 @@ export function createApiServer({
   userIntakeService,
   logger,
   scmWebhookService,
+  scmService,
   sessionQueue,
 }: {
   authService: AuthService;
@@ -56,6 +57,7 @@ export function createApiServer({
   userIntakeService: UserIntakeService;
   logger: Logger;
   scmWebhookService: ScmWebhookService;
+  scmService: ScmService;
   sessionQueue: CommandQueue;
 }) {
   const app = express();
@@ -265,6 +267,150 @@ export function createApiServer({
     
     const view = await sessionService.getSessionView(sessionId);
     res.status(200).json(view);
+  }));
+
+  /**
+   * POST /sessions/:id/scm-sync
+   * Actively refreshes SCM feedback for the session's current pull request.
+   */
+  app.post('/sessions/:id/scm-sync', wrap(async (req, res) => {
+    const user = await authenticateRequest(req, res);
+    if (!user) {
+      return;
+    }
+
+    const sessionId = String(req.params.id || '').trim();
+    if (!sessionId) {
+      res.status(400).json({ error: 'Session id is required.' });
+      return;
+    }
+
+    const session = await sessionService.getSession(sessionId);
+    if (!session) {
+      res.status(404).json({ error: 'Session not found.' });
+      return;
+    }
+
+    logger.info('scm sync requested', {
+      sessionId,
+      userId: user.id,
+      hasScmContext: Boolean(session.context?.scm),
+    });
+
+    const scm = session.context?.scm;
+    const publish = scm && typeof scm === 'object' ? scm.publish : undefined;
+    const pullRequest = publish && typeof publish === 'object' ? publish.pullRequest : undefined;
+    const provider = scm?.provider;
+    const repoUrl = scm?.repoUrl;
+
+    if (!provider || !repoUrl || !pullRequest?.number) {
+      logger.info('scm sync skipped - missing pull request binding', {
+        sessionId,
+        hasProvider: Boolean(provider),
+        hasRepoUrl: Boolean(repoUrl),
+        hasPullRequest: Boolean(pullRequest),
+      });
+      res.status(400).json({ error: 'Session does not have an active SCM pull request to sync.' });
+      return;
+    }
+
+    const repository = scmService.parseRepository({ provider, repoUrl });
+    logger.info('scm sync collecting feedback', {
+      sessionId,
+      provider,
+      repoUrl,
+      pullRequestNumber: pullRequest.number,
+      sourceBranch: pullRequest.sourceBranch || '',
+      targetBranch: pullRequest.targetBranch || '',
+    });
+    const feedback = await scmService.collectPullRequestFeedback({
+      repo: repository,
+      token: scm?.token,
+      pullRequest: {
+        id: pullRequest.id,
+        number: pullRequest.number,
+        url: pullRequest.url,
+        title: session.goal,
+        sourceBranch: pullRequest.sourceBranch || '',
+        targetBranch: pullRequest.targetBranch || '',
+      },
+    });
+
+    logger.info('scm sync collected feedback', {
+      sessionId,
+      pipelineFailureCount: feedback.pipelineFailures.length,
+      reviewCommentCount: feedback.reviewComments.length,
+    });
+
+    if (feedback.pipelineFailures.length > 0) {
+      logger.info('scm sync emitting pipeline failure event', {
+        sessionId,
+        pullRequestNumber: pullRequest.number,
+        failureCount: feedback.pipelineFailures.length,
+      });
+      await eventService.emit({
+        sessionId,
+        type: 'SCM_PIPELINE_FAILED',
+        payload: {
+          failures: feedback.pipelineFailures,
+          pullRequestNumber: pullRequest.number,
+        },
+      });
+    } else {
+      logger.info('scm sync emitting pipeline passed event', {
+        sessionId,
+        pullRequestNumber: pullRequest.number,
+      });
+      await eventService.emit({
+        sessionId,
+        type: 'SCM_PIPELINE_PASSED',
+        payload: {
+          pullRequestNumber: pullRequest.number,
+        },
+      });
+    }
+
+    if (feedback.reviewComments.length > 0) {
+      logger.info('scm sync emitting review comment event', {
+        sessionId,
+        pullRequestNumber: pullRequest.number,
+        commentCount: feedback.reviewComments.length,
+      });
+      await eventService.emit({
+        sessionId,
+        type: 'SCM_REVIEW_COMMENT_ADDED',
+        payload: {
+          comments: feedback.reviewComments,
+          pullRequestNumber: pullRequest.number,
+        },
+      });
+    }
+
+    logger.info('scm sync emitting sync-complete event', {
+      sessionId,
+      pipelineFailureCount: feedback.pipelineFailures.length,
+      reviewCommentCount: feedback.reviewComments.length,
+    });
+    await eventService.emit({
+      sessionId,
+      type: 'SCM_FEEDBACK_SYNCED',
+      payload: {
+        pipelineFailures: feedback.pipelineFailures,
+        reviewComments: feedback.reviewComments,
+      },
+    });
+
+    logger.info('scm sync completed', {
+      sessionId,
+      pipelineFailureCount: feedback.pipelineFailures.length,
+      reviewCommentCount: feedback.reviewComments.length,
+    });
+
+    res.status(200).json({
+      sessionId,
+      pipelineFailures: feedback.pipelineFailures,
+      reviewComments: feedback.reviewComments,
+    });
   }));
 
   /**

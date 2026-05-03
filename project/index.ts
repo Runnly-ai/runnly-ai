@@ -23,6 +23,7 @@ async function main(): Promise<void> {
     userIntakeService: app.services.userIntakeService,
     logger: app.logger,
     scmWebhookService: app.services.scmWebhookService,
+    scmService: app.services.scmService,
     sessionQueue: app.queue,
   });
 

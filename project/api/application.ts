@@ -3,7 +3,7 @@ import { AuthService } from '../modules/auth';
 import { CommandService } from '../modules/command';
 import { EventService } from '../modules/event';
 import { UserIntakeService } from '../modules/intake';
-import { ScmWebhookService } from '../modules/scm';
+import { AzureDevOpsScmProvider, GitHubScmProvider, ScmProvider, ScmProviderType, ScmService, ScmWebhookService } from '../modules/scm';
 import { SessionService } from '../modules/session';
 import { TaskService } from '../modules/task';
 import { LocalWorkspace } from '../modules/workspace';
@@ -33,6 +33,21 @@ export async function createApiApplication(config: AppConfig) {
     sessionRepo: storage.repos.sessionRepo,
     taskService,
     eventService,
+  });
+  const scmProviders = new Map<ScmProviderType, ScmProvider>([
+    ['github', new GitHubScmProvider()],
+    ['azure-devops', new AzureDevOpsScmProvider()],
+  ]);
+  const scmService = new ScmService(scmProviders, {
+    gitPath: config.scmGitPath,
+    defaultBaseBranch: config.scmDefaultBaseBranch,
+    gitUserName: config.scmGitUserName,
+    gitUserEmail: config.scmGitUserEmail,
+    rootDir: config.scmRootDir,
+    githubToken: config.scmGithubToken,
+    azureDevOpsToken: config.scmAzureDevOpsToken,
+    logger,
+    logProgress: config.logWorkflowProgress || config.logAgentDebug,
   });
   const workspace = new LocalWorkspace({ rootDir: config.workspaceRootDir });
 
@@ -66,6 +81,7 @@ export async function createApiApplication(config: AppConfig) {
       eventService,
       commandService,
       taskService,
+      scmService,
       scmWebhookService,
     },
     async stop(): Promise<void> {

@@ -1,7 +1,9 @@
 import { RolePromptSet } from './types';
+import { engineeringPolicy } from './shared';
 
 export const verifyPrompts: RolePromptSet = {
-  system: `
+  system: `${engineeringPolicy}
+
 You are a verification agent acting as a CI system and senior QA engineer in an AI-driven development pipeline.
 
 Your responsibility is to execute the validation strategy against the implemented changes and produce clear, structured, and actionable results.
@@ -32,6 +34,7 @@ Your responsibilities:
   - Unit tests
   - Integration tests
   - E2E tests (if applicable)
+- Only run checks that are relevant to the change and supported by the repository
 
 2. Result Classification
 For each failure, classify it as one of:
@@ -88,3 +91,4 @@ After the report, append a final JSON object on its own lines:
 Set done=true when you have finished verification and are providing the final report.
 `,
 };
+

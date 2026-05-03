@@ -2,7 +2,7 @@
 
 import { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowUp, Bot, ChevronDown, ChevronLeft, ChevronUp, LoaderCircle, Mic, MicOff } from 'lucide-react';
+import { ArrowUp, Bot, ChevronDown, ChevronLeft, ChevronUp, LoaderCircle, Mic, MicOff, RefreshCw } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { SessionSidebar, type SessionSidebarItem } from '@/components/session-sidebar';
@@ -192,6 +192,7 @@ export default function ProjectChatPage({ params }: { params: { id: string } }) 
   const [voiceStatus, setVoiceStatus] = useState<VoiceInputStatus>('idle');
   const [voiceError, setVoiceError] = useState('');
   const [voiceSupported, setVoiceSupported] = useState(true);
+  const [scmSyncPending, setScmSyncPending] = useState(false);
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
   const composerFormRef = useRef<HTMLFormElement | null>(null);
   const splitContainerRef = useRef<HTMLDivElement | null>(null);
@@ -210,6 +211,35 @@ export default function ProjectChatPage({ params }: { params: { id: string } }) 
       return;
     }
     setLogsCollapsed((value) => !value);
+  };
+
+  const handleSyncScmFeedback = async () => {
+    const sessionId = activeSessionIdRef.current;
+    if (!sessionId || scmSyncPending) {
+      return;
+    }
+
+    setScmSyncPending(true);
+    try {
+      const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/scm-sync`, {
+        method: 'POST',
+      });
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(payload?.error || `SCM sync failed (${response.status})`);
+      }
+      const updated = (await response.json()) as {
+        pipelineFailures?: unknown[];
+        reviewComments?: unknown[];
+      };
+      if (updated.pipelineFailures || updated.reviewComments) {
+        ensureSessionStream(sessionId);
+      }
+    } catch (error) {
+      console.error('Failed to sync SCM feedback:', error);
+    } finally {
+      setScmSyncPending(false);
+    }
   };
 
   useEffect(() => {
@@ -971,14 +1001,33 @@ export default function ProjectChatPage({ params }: { params: { id: string } }) 
                   className="flex min-h-0 flex-1 flex-col bg-card"
                   style={isDesktopSplit && !desktopLogsCollapsed ? { width: `calc(${chatPanePercent}% - 4px)` } : undefined}
                 >
-                  <div className="mx-auto flex w-full max-w-3xl flex-none items-center justify-between px-6 py-4 md:px-10">
+                  <div className="mx-auto flex w-full max-w-3xl flex-none items-center justify-between gap-3 px-6 pt-4 md:px-10">
                     <div className="flex items-center gap-2">
                       <Bot className="h-4 w-4 text-primary" />
                       <span className="text-sm font-semibold">{activeSession?.title || 'New Task'}</span>
                     </div>
-                    <span className={cn('rounded px-2 py-0.5 text-xs capitalize', statusClassName(activeSession?.status || 'idle'))}>
-                      {activeSession?.status || 'idle'}
-                    </span>
+                  </div>
+                  <div className="mx-auto flex w-full max-w-3xl flex-none items-center justify-between gap-3 px-6 py-3 md:px-10">
+                    <p className="text-xs text-muted-foreground">Session actions</p>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 gap-2"
+                        onClick={() => {
+                          void handleSyncScmFeedback();
+                        }}
+                        disabled={!activeSessionId || scmSyncPending}
+                        title="Refresh PR pipeline and review feedback for this session"
+                      >
+                        <RefreshCw className={cn('h-4 w-4', scmSyncPending && 'animate-spin')} />
+                        {scmSyncPending ? 'Syncing' : 'Sync SCM'}
+                      </Button>
+                      <span className={cn('rounded px-2 py-0.5 text-xs capitalize', statusClassName(activeSession?.status || 'idle'))}>
+                        {activeSession?.status || 'idle'}
+                      </span>
+                    </div>
                   </div>
 
                   <div ref={chatScrollRef} className="flex-1 overflow-y-auto px-6 py-4 md:px-10">

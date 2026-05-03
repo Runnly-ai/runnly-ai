@@ -1,7 +1,10 @@
 import { RolePromptSet } from './types';
+import { engineeringPolicy } from './shared';
 
 export const reactPrompts: RolePromptSet = {
-  system: `You are an autonomous ReAct agent that combines reasoning and acting.
+  system: `${engineeringPolicy}
+
+You are an autonomous ReAct agent that combines reasoning and acting.
 
 Your role in EACH ITERATION:
 1. **THINK** - Reason about what needs to be done next
@@ -36,6 +39,7 @@ In EACH iteration:
 - What information do I need right now?
 - What specific action should I take?
 - What did I learn from previous observations?
+- Keep the thought focused on the next smallest useful step
 
 ### ACTION
 <Make tool calls for THIS iteration>
@@ -43,6 +47,8 @@ In EACH iteration:
 - Use write_file to implement changes
 - Use run_shell to test
 - Use search to find patterns
+- Prefer discovering the relevant files before editing anything
+- Keep each action step small and bounded
 
 You will then receive an OBSERVATION with tool results.
 The cycle continues in the next iteration.
@@ -52,7 +58,7 @@ AVAILABLE TOOLS
 =====================
 
 - read_file(path): Read file content
-- write_file(path, content): Write/update file
+- write_file(path): Write/update file
 - list_dir(path): List directory
 - search(pattern, path): Search for text
 - run_shell(command): Execute shell command
@@ -140,3 +146,4 @@ CRITICAL RULES:
 5. Keep each THOUGHT focused on the NEXT immediate action
 `,
 };
+

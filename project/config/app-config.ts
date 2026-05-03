@@ -19,6 +19,7 @@ export interface AppConfig {
   logVerbose: boolean;
   port: number;
   workerPollMs: number;
+  workerSessionTimeoutMs: number;
   queueBackend: 'memory' | 'redis';
   eventBusBackend: 'memory' | 'redis';
   stateBackend: 'memory' | 'redis';
@@ -169,6 +170,10 @@ export function getAppConfig(): AppConfig {
   const agentMaxIterations = Number.isFinite(rawAgentMaxIterations) && rawAgentMaxIterations > 0
     ? Math.floor(rawAgentMaxIterations)
     : 10;
+  const rawWorkerSessionTimeoutMinutes = Number(process.env.WORKER_SESSION_TIMEOUT_MS || 120);
+  const workerSessionTimeoutMs = Number.isFinite(rawWorkerSessionTimeoutMinutes) && rawWorkerSessionTimeoutMinutes > 0
+    ? Math.floor(rawWorkerSessionTimeoutMinutes) * 60 * 1000
+    : 120 * 60 * 1000;
   const logSessionToFile = process.env.LOG_SESSION_TO_FILE !== 'false';
   const sessionLogDir = resolveAbsolutePath(process.env.SESSION_LOG_DIR || defaultSessionLogDir);
   const redisKeyPrefix = process.env.REDIS_KEY_PREFIX || 'runnly-ai';
@@ -198,6 +203,7 @@ export function getAppConfig(): AppConfig {
     logVerbose,
     port: Number(process.env.PORT || 3000),
     workerPollMs: Number(process.env.WORKER_POLL_MS || 100),
+    workerSessionTimeoutMs,
     queueBackend,
     eventBusBackend,
     stateBackend,

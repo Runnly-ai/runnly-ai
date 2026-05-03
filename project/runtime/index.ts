@@ -167,6 +167,7 @@ export async function createApplication(
       eventService,
       commandService,
       taskService,
+      scmService,
       scmWebhookService,
     },
     async stop(): Promise<void> {
