@@ -91,6 +91,13 @@ export class SessionService {
   }
 
   /**
+   * Returns the raw session record.
+   */
+  async getSession(sessionId: string): Promise<Session | null> {
+    return this.deps.sessionRepo.getById(sessionId);
+  }
+
+  /**
    * Lists emitted events for a session.
    *
    * @param sessionId Session identifier.

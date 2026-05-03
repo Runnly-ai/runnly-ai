@@ -270,16 +270,18 @@ async function processSession(
       }
     }
     
-    // Wait for session to complete (with timeout)
-    const maxWaitMs = 30 * 60 * 1000; // 30 minutes max
+    const maxWaitMs = config.workerSessionTimeoutMs;
     const startTime = Date.now();
-    
+
     while (!sessionCompleted && isRunning()) {
-      if (Date.now() - startTime > maxWaitMs) {
-        logger.error('session processing timeout', { sessionId });
+      if (maxWaitMs > 0 && Date.now() - startTime > maxWaitMs) {
+        logger.error('session processing timeout', {
+          sessionId,
+          timeoutMs: maxWaitMs,
+        });
         break;
       }
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Poll every second
+      await new Promise((resolve) => setTimeout(resolve, 1000));
     }
     
     if (!isRunning() && !sessionCompleted) {
