@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { useRouter } from 'next/navigation';
 
 import AuthPage from './page';
 
@@ -113,13 +114,24 @@ const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
 describe('AuthPage', () => {
+  let mockRouterPush: ReturnType<typeof vi.fn>;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    mockRouterPush = vi.fn();
     // Mock successful auth check (not logged in)
     mockFetch.mockResolvedValue({
       ok: false,
       json: async () => ({ user: null }),
     });
+    // Set up router mock return value
+    vi.mocked(useRouter).mockReturnValue({
+      push: mockRouterPush,
+      replace: vi.fn(),
+      refresh: vi.fn(),
+      back: vi.fn(),
+      forward: vi.fn(),
+    } as any);
   });
 
   it('renders loading state initially', () => {
@@ -152,15 +164,6 @@ describe('AuthPage', () => {
         } 
       }),
     });
-
-    const mockRouterPush = vi.fn();
-    vi.mocked(useRouter).mockReturnValue({
-      push: mockRouterPush,
-      replace: vi.fn(),
-      refresh: vi.fn(),
-      back: vi.fn(),
-      forward: vi.fn(),
-    } as any);
 
     render(<AuthPage />);
     
@@ -207,7 +210,7 @@ describe('AuthPage', () => {
       expect(screen.queryByText('Checking session...')).not.toBeInTheDocument();
     });
     
-    // Submit with empty fields
+    // Submit with empty fields - click the submit button (mock component calls onSubmit on click)
     await userEvent.click(screen.getByTestId('submit-button'));
     
     expect(screen.getByTestId('error-message')).toHaveTextContent('Please complete all required fields.');
