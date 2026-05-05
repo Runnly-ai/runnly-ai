@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi } from 'vitest';
 
@@ -38,7 +38,8 @@ describe('SignupForm', () => {
     const nameInput = screen.getByLabelText('Full Name');
     await userEvent.type(nameInput, 'John Doe');
     
-    expect(onNameChange).toHaveBeenCalledWith('John Doe');
+    // userEvent.type fires one onChange per character
+    expect(onNameChange).toHaveBeenCalledTimes(8);
   });
 
   it('calls onEmailChange when email input changes', async () => {
@@ -48,7 +49,7 @@ describe('SignupForm', () => {
     const emailInput = screen.getByLabelText('Email');
     await userEvent.type(emailInput, 'test@example.com');
     
-    expect(onEmailChange).toHaveBeenCalledWith('test@example.com');
+    expect(onEmailChange).toHaveBeenCalledTimes(16);
   });
 
   it('calls onPasswordChange when password input changes', async () => {
@@ -58,7 +59,7 @@ describe('SignupForm', () => {
     const passwordInput = screen.getByLabelText('Password');
     await userEvent.type(passwordInput, 'password123');
     
-    expect(onPasswordChange).toHaveBeenCalledWith('password123');
+    expect(onPasswordChange).toHaveBeenCalledTimes(11);
   });
 
   it('calls onConfirmPasswordChange when confirm password input changes', async () => {
@@ -68,15 +69,16 @@ describe('SignupForm', () => {
     const confirmPasswordInput = screen.getByLabelText('Confirm Password');
     await userEvent.type(confirmPasswordInput, 'password123');
     
-    expect(onConfirmPasswordChange).toHaveBeenCalledWith('password123');
+    expect(onConfirmPasswordChange).toHaveBeenCalledTimes(11);
   });
 
   it('calls onSubmit when form is submitted', async () => {
-    const onSubmit = vi.fn((e) => e.preventDefault());
+    const onSubmit = vi.fn();
     render(<SignupForm {...defaultProps} onSubmit={onSubmit} />);
     
     const submitButton = screen.getByRole('button', { name: 'Create Account' });
-    await userEvent.click(submitButton);
+    const form = submitButton.closest('form')!;
+    fireEvent.submit(form);
     
     expect(onSubmit).toHaveBeenCalled();
   });

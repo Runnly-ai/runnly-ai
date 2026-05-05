@@ -8,13 +8,13 @@ afterEach(() => {
 
 // Mock next/navigation
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({
+  useRouter: vi.fn(() => ({
     push: vi.fn(),
     replace: vi.fn(),
     refresh: vi.fn(),
     back: vi.fn(),
     forward: vi.fn(),
-  }),
+  })),
 }));
 
 // Mock lucide-react

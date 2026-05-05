@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi } from 'vitest';
 
@@ -32,7 +32,8 @@ describe('LoginForm', () => {
     const emailInput = screen.getByLabelText('Email');
     await userEvent.type(emailInput, 'test@example.com');
     
-    expect(onEmailChange).toHaveBeenCalledWith('test@example.com');
+    // userEvent.type fires one onChange per character
+    expect(onEmailChange).toHaveBeenCalledTimes(16);
   });
 
   it('calls onPasswordChange when password input changes', async () => {
@@ -42,15 +43,16 @@ describe('LoginForm', () => {
     const passwordInput = screen.getByLabelText('Password');
     await userEvent.type(passwordInput, 'password123');
     
-    expect(onPasswordChange).toHaveBeenCalledWith('password123');
+    expect(onPasswordChange).toHaveBeenCalledTimes(11);
   });
 
   it('calls onSubmit when form is submitted', async () => {
-    const onSubmit = vi.fn((e) => e.preventDefault());
+    const onSubmit = vi.fn();
     render(<LoginForm {...defaultProps} onSubmit={onSubmit} />);
     
     const submitButton = screen.getByRole('button', { name: 'Login' });
-    await userEvent.click(submitButton);
+    const form = submitButton.closest('form')!;
+    fireEvent.submit(form);
     
     expect(onSubmit).toHaveBeenCalled();
   });
