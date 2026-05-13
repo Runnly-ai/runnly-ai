@@ -68,6 +68,8 @@ export abstract class RoleAgent extends Agent {
       taskDescription: this.extractTaskDescription(command),
       projectContext: this.extractProjectContext(command),
       skillContext: [skillReminders, skillContext].filter(Boolean).join('\n\n') || undefined,
+      scmReviewComments: this.extractScmReviewComments(command),
+      scmFailures: this.extractScmFailures(command),
       requirements: this.extractRequirements(command),
       constraints: this.extractConstraints(command),
       
@@ -232,6 +234,72 @@ export abstract class RoleAgent extends Agent {
       return command.payload.constraints as Record<string, unknown>;
     }
     return undefined;
+  }
+
+  protected extractScmReviewComments(command: Command): string | undefined {
+    const comments = command.payload.scmReviewComments;
+    if (!Array.isArray(comments) || comments.length === 0) {
+      return undefined;
+    }
+
+    return [
+      '## SCM Review Comments',
+      ...comments
+        .map((comment: unknown, index: number) => this.formatScmComment(comment, index + 1))
+        .filter(Boolean),
+    ].join('\n');
+  }
+
+  protected extractScmFailures(command: Command): string | undefined {
+    const failures = command.payload.scmFailures;
+    if (!Array.isArray(failures) || failures.length === 0) {
+      return undefined;
+    }
+
+    return [
+      '## SCM Failures',
+      ...failures
+        .map((failure: unknown, index: number) => this.formatScmFailure(failure, index + 1))
+        .filter(Boolean),
+    ].join('\n');
+  }
+
+  private formatScmComment(value: unknown, index: number): string | undefined {
+    if (!value || typeof value !== 'object') {
+      return undefined;
+    }
+    const comment = value as Record<string, unknown>;
+    const body = typeof comment.body === 'string' ? comment.body.trim() : '';
+    if (!body) {
+      return undefined;
+    }
+    const source = typeof comment.source === 'string' && comment.source.trim() ? comment.source.trim() : 'unknown';
+    const author = typeof comment.author === 'string' && comment.author.trim() ? comment.author.trim() : 'unknown';
+    const filePath = typeof comment.filePath === 'string' && comment.filePath.trim() ? comment.filePath.trim() : '';
+    const line = typeof comment.line === 'number' ? String(comment.line) : '';
+    const url = typeof comment.url === 'string' && comment.url.trim() ? comment.url.trim() : '';
+    const location = [filePath ? `file=${filePath}` : '', line ? `line=${line}` : ''].filter(Boolean).join(' ');
+    const meta = [`source=${source}`, `author=${author}`, location ? location : '', url ? `url=${url}` : '']
+      .filter(Boolean)
+      .join(' | ');
+    return [
+      `${index}. ${body}`,
+      `   - ${meta}`,
+    ].join('\n');
+  }
+
+  private formatScmFailure(value: unknown, index: number): string | undefined {
+    if (!value || typeof value !== 'object') {
+      return undefined;
+    }
+    const failure = value as Record<string, unknown>;
+    const name = typeof failure.name === 'string' ? failure.name.trim() : '';
+    const status = typeof failure.status === 'string' ? failure.status.trim() : '';
+    const details = typeof failure.details === 'string' ? failure.details.trim() : '';
+    if (!name && !status && !details) {
+      return undefined;
+    }
+    return `${index}. ${[name, status, details].filter(Boolean).join(' | ')}`;
   }
 
   /**

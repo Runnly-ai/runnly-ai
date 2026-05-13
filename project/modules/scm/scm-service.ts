@@ -143,6 +143,16 @@ export class ScmService {
       baseBranch: input.workspace.baseBranch,
     });
 
+    if (input.existingPullRequest) {
+      this.log('scm syncing existing pull request branch', {
+        sessionId: input.sessionId,
+        pullRequestNumber: input.existingPullRequest.number,
+        branch: input.workspace.branch,
+      });
+      await this.git.fetchBranch(input.workspace.repoDir, input.workspace.branch, { extraConfig: authConfig });
+      await this.git.rebaseOntoRemoteBranch(input.workspace.worktreeDir, input.workspace.branch, { extraConfig: authConfig });
+    }
+
     // Stage all changes first (files, modifications, deletions)
     await this.git.addAll(input.workspace.worktreeDir);
 
@@ -194,7 +204,7 @@ export class ScmService {
 
     await this.git.pushBranch(input.workspace.worktreeDir, input.workspace.branch, { extraConfig: authConfig });
 
-    const pullRequest = await provider.createPullRequest({
+    const pullRequest = input.existingPullRequest || await provider.createPullRequest({
       repo,
       token,
       title: input.config.prTitle || `Agent changes for session ${input.sessionId}`,
@@ -202,10 +212,11 @@ export class ScmService {
       sourceBranch: input.workspace.branch,
       targetBranch: input.workspace.baseBranch,
     });
-    this.log('scm pull request creation completed', {
+    this.log(input.existingPullRequest ? 'scm pull request reused' : 'scm pull request creation completed', {
       sessionId: input.sessionId,
       pullRequestNumber: pullRequest.number,
       pullRequestUrl: pullRequest.url,
+      branch: input.workspace.branch,
     });
 
     this.log('scm feedback collection started', {

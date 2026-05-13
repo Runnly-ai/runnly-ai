@@ -14,11 +14,15 @@ import {
   RedisSessionRepo,
   InMemorySessionRepo,
   SessionRepo,
+  PostgresSessionRepo,
+  SqliteSessionRepo,
 } from '../../modules/session';
 import {
   RedisTaskRepo,
   InMemoryTaskRepo,
   TaskRepo,
+  PostgresTaskRepo,
+  SqliteTaskRepo,
 } from '../../modules/task';
 import {
   PostgresPullRequestBindingRepo,
@@ -26,12 +30,15 @@ import {
   SqlitePullRequestBindingRepo,
 } from '../../modules/scm';
 import { AuthRepo, PostgresAuthRepo, SqliteAuthRepo } from '../../modules/auth';
+import { ProjectRepository, PostgresProjectRepo, SqliteProjectRepo } from '../../modules/project';
+import { PostgresEventRepo, SqliteEventRepo } from '../../modules/event';
 
 export interface Repos {
   sessionRepo: SessionRepo;
   taskRepo: TaskRepo;
   eventRepo: EventRepo;
   commandRepo: CommandRepo;
+  projectRepo: ProjectRepository;
 }
 
 /**
@@ -58,12 +65,36 @@ export function createEventBus(config: AppConfig): EventBus {
  * Creates repository adapters from config.
  */
 export function createRepos(config: AppConfig): Repos {
+  if (config.dbBackend === 'postgres') {
+    if (!config.postgresUrl) {
+      throw new Error('POSTGRES_URL is required when DB_BACKEND=postgres');
+    }
+    return {
+      sessionRepo: new PostgresSessionRepo(config.postgresUrl),
+      taskRepo: new PostgresTaskRepo(config.postgresUrl),
+      eventRepo: new PostgresEventRepo(config.postgresUrl),
+      commandRepo: new RedisCommandRepo(config.redisUrl, config.redisKeyPrefix),
+      projectRepo: new PostgresProjectRepo(config.postgresUrl),
+    };
+  }
+
+  if (config.dbBackend === 'sqlite') {
+    return {
+      sessionRepo: new SqliteSessionRepo(config.sqliteDbPath),
+      taskRepo: new SqliteTaskRepo(config.sqliteDbPath),
+      eventRepo: new SqliteEventRepo(config.sqliteDbPath),
+      commandRepo: new RedisCommandRepo(config.redisUrl, config.redisKeyPrefix),
+      projectRepo: new SqliteProjectRepo(config.sqliteDbPath),
+    };
+  }
+
   if (config.stateBackend === 'redis') {
     return {
       sessionRepo: new RedisSessionRepo(config.redisUrl, config.redisKeyPrefix),
       taskRepo: new RedisTaskRepo(config.redisUrl, config.redisKeyPrefix),
       eventRepo: new RedisEventRepo(config.redisUrl, config.redisKeyPrefix),
       commandRepo: new RedisCommandRepo(config.redisUrl, config.redisKeyPrefix),
+      projectRepo: new SqliteProjectRepo(config.sqliteDbPath),
     };
   }
 
@@ -72,6 +103,7 @@ export function createRepos(config: AppConfig): Repos {
     taskRepo: new InMemoryTaskRepo(),
     eventRepo: new InMemoryEventRepo(),
     commandRepo: new InMemoryCommandRepo(),
+    projectRepo: new SqliteProjectRepo(config.sqliteDbPath),
   };
 }
 

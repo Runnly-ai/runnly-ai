@@ -8,5 +8,7 @@ export {
 } from './types/context';
 export { InMemorySessionRepo } from './inmemory-session-repo';
 export { RedisSessionRepo } from './redis-session-repo';
+export { SqliteSessionRepo } from './sqlite-session-repo';
+export { PostgresSessionRepo } from './postgres-session-repo';
 export { SessionService } from './session-service';
 export { SessionView, buildSessionView } from './session-view';

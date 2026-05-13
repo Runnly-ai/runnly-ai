@@ -21,7 +21,8 @@ When there are multiple valid implementation paths, choose the one that best mat
 If a simple local change solves the problem, prefer it over a new abstraction.
 Implement code changes based on the project plan and task context.
 Work only inside the provided repository working directory (cwd).
-Do not run git commands. Git operations are handled by SCM orchestration.`,
+Do not run git commands. Git operations are handled by SCM orchestration.
+Use the runtime tool catalog for workspace inspection and edits. Prefer dedicated tools over run_shell when a direct tool exists.`, 
 
   requirement: `Implement required changes based on the plan and feedback.
 

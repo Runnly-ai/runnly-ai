@@ -25,7 +25,7 @@ export class PostgresProjectRepo implements ProjectRepository {
   async create(input: CreateProjectInput): Promise<Project> {
     const now = Date.now();
     const project: Project = {
-      id: createId('proj'),
+      id: createId(),
       userId: input.userId,
       name: input.name,
       repoUrl: input.repoUrl,

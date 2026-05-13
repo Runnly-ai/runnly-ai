@@ -30,7 +30,7 @@ export class CommandService {
    */
   async dispatch({ sessionId, type, payload }: DispatchInput): Promise<Command> {
     const command: Command = {
-      id: createId('cmd'),
+      id: createId(),
       sessionId,
       type,
       payload: payload || {},

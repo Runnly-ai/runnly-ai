@@ -29,7 +29,7 @@ export const TOOL_CATALOG: AgentToolSpec[] = [
   { name: 'git_push', description: 'Push commits to a remote.', args: ['args'], intent: 'git' },
   { name: 'git_fetch', description: 'Fetch from a remote repository.', args: ['args'], intent: 'git' },
   { name: 'git_worktree', description: 'Manage git worktrees.', args: ['args'], intent: 'git' },
-  { name: 'run_shell', description: 'Run one allowlisted shell command inside the workspace.', args: ['command'], intent: 'shell' },
+  { name: 'run_shell', description: 'Run one allowlisted shell command inside the workspace. No pipes, chaining, redirects, or substitutions. Prefer dedicated tools first.', args: ['command'], intent: 'shell' },
   { name: 'pwd', description: 'Print the current working directory.', args: [], intent: 'read' },
   { name: 'file_size', description: 'Inspect the size of a file or directory.', args: ['path'], intent: 'read' },
   { name: 'glob', description: 'Find files by wildcard pattern.', args: ['pattern', 'path'], intent: 'search' },

@@ -158,15 +158,6 @@ export class UserIntakeService {
       return mapped;
     }
 
-    if (/^local_[a-zA-Z0-9._-]+$/.test(clean)) {
-      return clean;
-    }
-
-    // Session ids are not stable workspace ids.
-    if (/^sess_[a-zA-Z0-9._-]+$/.test(clean)) {
-      return 'default';
-    }
-
     return clean;
   }
 
@@ -227,7 +218,13 @@ export class UserIntakeService {
       workspaceId,
       contextPatch,
     );
-    const created = await this.sessionService.createSession(request.goal, context);
+    const { userId, projectId } = this.extractOwnership(contextPatch, context);
+    const created = await this.sessionService.createSession({
+      userId,
+      projectId,
+      goal: request.goal,
+      context,
+    });
     this.workspaceByThreadId.set(created.id, workspaceId);
     const sourceKey = typeof sourceThreadId === 'string' ? sourceThreadId.trim() : '';
     if (sourceKey) {
@@ -321,5 +318,33 @@ export class UserIntakeService {
       ...base,
       metadata,
     };
+  }
+
+  private extractOwnership(
+    contextPatch: Record<string, unknown> | undefined,
+    context: Record<string, unknown>,
+  ): { userId: string; projectId: string } {
+    const metadata = this.asRecord(context.metadata);
+    const patchMetadata = this.asRecord(contextPatch?.metadata);
+    const userId = this.cleanString(patchMetadata?.userId) || this.cleanString(metadata?.userId);
+    const projectId = this.cleanString(patchMetadata?.projectId) || this.cleanString(metadata?.projectId);
+    if (!userId) {
+      throw new Error('User id is required to create a session.');
+    }
+    if (!projectId) {
+      throw new Error('Project id is required to create a session.');
+    }
+    return { userId, projectId };
+  }
+
+  private asRecord(value: unknown): Record<string, unknown> | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return null;
+    }
+    return value as Record<string, unknown>;
+  }
+
+  private cleanString(value: unknown): string {
+    return typeof value === 'string' ? value.trim() : '';
   }
 }

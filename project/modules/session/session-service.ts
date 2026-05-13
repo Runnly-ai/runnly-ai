@@ -34,13 +34,20 @@ export class SessionService {
    * @param context Optional arbitrary session context.
    * @returns Created session record.
    */
-  async createSession(goal: string, context?: SessionContext | unknown): Promise<Session> {
+  async createSession(input: {
+    userId: string;
+    projectId: string;
+    goal: string;
+    context?: SessionContext | unknown;
+  }): Promise<Session> {
     const ts = nowTs();
     const session: Session = {
-      id: createId('sess'),
-      goal,
+      id: createId(),
+      userId: input.userId,
+      projectId: input.projectId,
+      goal: input.goal,
       status: SessionStatus.CREATED,
-      context: normalizeSessionContext(context),
+      context: normalizeSessionContext(input.context),
       createdAt: ts,
       updatedAt: ts,
     };
@@ -105,6 +112,14 @@ export class SessionService {
    */
   async getEvents(sessionId: string): Promise<EventRecord[]> {
     return this.deps.eventService.listBySessionId(sessionId);
+  }
+
+  async listUserSessions(userId: string): Promise<Session[]> {
+    return this.deps.sessionRepo.listByUserId(userId);
+  }
+
+  async listProjectSessions(projectId: string): Promise<Session[]> {
+    return this.deps.sessionRepo.listByProjectId(projectId);
   }
 
   /**

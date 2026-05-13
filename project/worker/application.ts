@@ -12,6 +12,7 @@ import { Logger } from '../modules/utils/logger';
 import { Command, CommandType } from '../modules/command';
 import { Agent, PlanningRoleAgent, GenerateRoleAgent, VerifyRoleAgent, ReviewRoleAgent, ReActRoleAgent } from '../modules/agents';
 import { createAgentProviderRouter, createPlanningProviderRouter } from '../runtime/factories/agent-factories';
+import { SessionQueueItem } from './session-queue';
 
 /**
  * Autonomous worker that handles complete session lifecycles.
@@ -148,22 +149,19 @@ async function runWorkerLoop(
 ): Promise<void> {
   while (isRunning()) {
     try {
-      const sessionId = await sessionQueue.dequeue(pollMs);
-      if (!sessionId) {
+      const workItem = await sessionQueue.dequeue(pollMs);
+      if (!workItem) {
         continue; // Timeout, loop again
       }
 
-      // Validate that we got a session ID, not a command ID (from old queue entries)
-      if (!sessionId.startsWith('sess_')) {
-        logger.info('worker dequeued invalid session ID (ignoring old queue entry)', { 
-          dequeuedValue: sessionId 
-        });
-        continue;
-      }
-
-      logger.info('worker processing session', { sessionId });
-      await processSession(
+      const sessionId = workItem.sessionId;
+      logger.info('worker processing session', {
         sessionId,
+        reason: workItem.reason,
+        triggerEventId: workItem.triggerEventId,
+      });
+      await processSession(
+        workItem,
         orchestrationService,
         eventService,
         commandService,
@@ -184,7 +182,7 @@ async function runWorkerLoop(
  * Process a complete session lifecycle in this worker.
  */
 async function processSession(
-  sessionId: string,
+  workItem: SessionQueueItem,
   orchestrationService: OrchestrationService,
   eventService: EventService,
   commandService: CommandService,
@@ -194,6 +192,7 @@ async function processSession(
   config: AppConfig,
   isRunning: () => boolean
 ): Promise<void> {
+  const sessionId = workItem.sessionId;
   let sessionCompleted = false;
   let executingCommands = false;
   let rerunRequested = false;
@@ -254,11 +253,20 @@ async function processSession(
     // (handles race condition where SESSION_STARTED was emitted before we subscribed)
     const events = await eventService.listBySessionId(sessionId);
     const hasStarted = events.some(e => e.type === 'SESSION_STARTED');
-    const alreadyCompleted = events.some(e => e.type === 'SESSION_COMPLETED' || e.type === 'SESSION_FAILED');
-    
-    if (alreadyCompleted) {
-      logger.info('session already completed, skipping', { sessionId });
+    const completionEvent = [...events].reverse().find((e) => e.type === 'SESSION_COMPLETED' || e.type === 'SESSION_FAILED');
+    const shouldResumeCompletedSession = workItem.reason === 'scm-sync' || workItem.reason === 'manual';
+
+    if (completionEvent && !shouldResumeCompletedSession) {
+      logger.info('session already completed, skipping', { sessionId, reason: workItem.reason });
       return;
+    }
+
+    if (completionEvent && shouldResumeCompletedSession) {
+      logger.info('session completed but queue item requested resume, continuing', {
+        sessionId,
+        reason: workItem.reason,
+        completionAt: completionEvent.createdAt,
+      });
     }
     
     if (hasStarted) {

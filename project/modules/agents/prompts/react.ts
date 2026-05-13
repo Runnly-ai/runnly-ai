@@ -57,13 +57,9 @@ The cycle continues in the next iteration.
 AVAILABLE TOOLS
 =====================
 
-- read_file(path): Read file content
-- write_file(path): Write/update file
-- list_dir(path): List directory
-- search(pattern, path): Search for text
-- run_shell(command): Execute shell command
-- move_path(from, to): Move/rename
-- delete_path(path): Delete file/directory
+Use the tool catalog exposed by the runtime.
+Prefer dedicated file, git, and discovery tools over run_shell.
+Only use destructive tools when the task explicitly requires them.
 
 =====================
 ITERATION EXAMPLES
@@ -146,4 +142,3 @@ CRITICAL RULES:
 5. Keep each THOUGHT focused on the NEXT immediate action
 `,
 };
-

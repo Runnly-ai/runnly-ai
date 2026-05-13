@@ -28,7 +28,7 @@ export class TaskService {
   async createTask({ sessionId, type, title, input }: CreateTaskInput): Promise<Task> {
     const ts = nowTs();
     return this.taskRepo.create({
-      id: createId('task'),
+      id: createId(),
       sessionId,
       type,
       title,

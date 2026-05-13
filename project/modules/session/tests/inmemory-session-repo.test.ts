@@ -19,6 +19,8 @@ describe('InMemorySessionRepo', () => {
     it('should create a session', async () => {
       const session: Session = {
         id: 'sess_1',
+        userId: 'user_1',
+        projectId: 'proj_1',
         goal: 'Test Session',
         status: SessionStatus.CREATED,
         context: { projectId: 'proj_1' },
@@ -33,6 +35,8 @@ describe('InMemorySessionRepo', () => {
     it('should store multiple sessions', async () => {
       const session1: Session = {
         id: 'sess_1',
+        userId: 'user_1',
+        projectId: 'proj_1',
         goal: 'First session',
         status: SessionStatus.CREATED,
         context: { projectId: 'proj_1' },
@@ -42,6 +46,8 @@ describe('InMemorySessionRepo', () => {
 
       const session2: Session = {
         id: 'sess_2',
+        userId: 'user_2',
+        projectId: 'proj_2',
         goal: 'Second session',
         status: SessionStatus.CREATED,
         context: { userId: 'user_2', projectId: 'proj_2' },
@@ -62,6 +68,8 @@ describe('InMemorySessionRepo', () => {
     it('should overwrite session with same id', async () => {
       const session1: Session = {
         id: 'sess_1',
+        userId: 'user_1',
+        projectId: 'proj_1',
         goal: 'Original',
         status: SessionStatus.CREATED,
         context: { userId: 'user_1', projectId: 'proj_1' },
@@ -71,6 +79,8 @@ describe('InMemorySessionRepo', () => {
 
       const session2: Session = {
         id: 'sess_1',
+        userId: 'user_1',
+        projectId: 'proj_1',
         goal: 'Updated',
         status: SessionStatus.RUNNING,
         context: { userId: 'user_1', projectId: 'proj_1' },
@@ -95,6 +105,8 @@ describe('InMemorySessionRepo', () => {
     it('should retrieve session by id', async () => {
       const session: Session = {
         id: 'sess_1',
+        userId: 'user_1',
+        projectId: 'proj_1',
         goal: 'Test Goal',
         status: SessionStatus.CREATED,
         context: { userId: 'user_1', projectId: 'proj_1' },
@@ -118,6 +130,8 @@ describe('InMemorySessionRepo', () => {
     it('should update a session', async () => {
       const session: Session = {
         id: 'sess_1',
+        userId: 'user_1',
+        projectId: 'proj_1',
         goal: 'Original Goal',
         status: SessionStatus.CREATED,
         context: { userId: 'user_1', projectId: 'proj_1' },
@@ -141,6 +155,8 @@ describe('InMemorySessionRepo', () => {
     it('should preserve unchanged fields', async () => {
       const session: Session = {
         id: 'sess_1',
+        userId: 'user_1',
+        projectId: 'proj_1',
         goal: 'Test Goal',
         status: SessionStatus.CREATED,
         context: { userId: 'user_1', projectId: 'proj_1' },
@@ -161,9 +177,11 @@ describe('InMemorySessionRepo', () => {
     it('should handle partial updates', async () => {
       const session: Session = {
         id: 'sess_1',
+        userId: 'user_1',
+        projectId: 'proj_1',
         goal: 'Original',
         status: SessionStatus.CREATED,
-        context: { userId: 'user_1' },
+        context: { userId: 'user_1', projectId: 'proj_1' },
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };

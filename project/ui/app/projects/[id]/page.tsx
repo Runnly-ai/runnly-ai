@@ -281,6 +281,32 @@ export default function ProjectChatPage({ params }: { params: { id: string } }) 
         if (response.ok && !cancelled) {
           const project = await response.json();
           setProjectName(project.name || 'Project');
+          const sessions = Array.isArray(project.sessions) ? project.sessions : [];
+          if (sessions.length > 0) {
+            const nextOrder = sessions.map((session: { id: string }) => session.id);
+            setSessionOrder(nextOrder);
+            setSessionTraces((previous) => {
+              const next = { ...previous };
+              for (const session of sessions as Array<{ id: string; goal: string; status: string; createdAt: number; updatedAt: number }>) {
+                next[session.id] = {
+                  sessionId: session.id,
+                  title: session.goal || 'New Task',
+                  status: session.status || 'idle',
+                  currentStep: 'idle',
+                  progress: session.status === 'COMPLETED' ? 100 : 0,
+                  streamState: 'idle',
+                  events: [],
+                  unreadCount: 0,
+                  createdAt: session.createdAt,
+                  lastEventAt: session.updatedAt || null,
+                };
+              }
+              return next;
+            });
+            if (!activeSessionIdRef.current) {
+              setActiveSessionId(nextOrder[0] || null);
+            }
+          }
         }
       } catch (error) {
         console.error('Failed to load project:', error);
@@ -577,10 +603,6 @@ export default function ProjectChatPage({ params }: { params: { id: string } }) 
     const previousTitle = sessionTraces[sessionId]?.title || 'New Task';
     upsertSessionMeta(sessionId, { title: normalized });
     cancelRenameSession();
-
-    if (!sessionId.startsWith('sess_')) {
-      return;
-    }
 
     try {
       const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/rename`, {

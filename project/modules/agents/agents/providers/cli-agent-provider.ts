@@ -66,6 +66,14 @@ export class CliAgentProvider implements AgentProvider {
     if (input.previousOutput) {
       parts.push(`\n## Previous Output\n${input.previousOutput}`);
     }
+
+    if (input.scmReviewComments) {
+      parts.push(`\n## SCM Review Comments\n${input.scmReviewComments}`);
+    }
+
+    if (input.scmFailures) {
+      parts.push(`\n## SCM Failures\n${input.scmFailures}`);
+    }
     
     return parts.join('\n');
   }

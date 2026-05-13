@@ -17,6 +17,8 @@ export type SessionStatusType = (typeof SessionStatus)[keyof typeof SessionStatu
  */
 export interface Session {
   id: string;
+  userId: string;
+  projectId: string;
   goal: string;
   status: SessionStatusType;
   context: SessionContext;

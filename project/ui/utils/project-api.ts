@@ -12,6 +12,17 @@ export interface Project {
   rules?: string;
   createdAt: number;
   updatedAt: number;
+  sessions?: ProjectSession[];
+}
+
+export interface ProjectSession {
+  id: string;
+  userId: string;
+  projectId: string;
+  goal: string;
+  status: string;
+  createdAt: number;
+  updatedAt: number;
 }
 
 export interface CreateProjectInput {
@@ -52,6 +63,16 @@ export async function fetchProject(id: string): Promise<Project> {
   });
   if (!response.ok) {
     throw new Error(`Failed to fetch project: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+export async function fetchProjectSessions(id: string): Promise<ProjectSession[]> {
+  const response = await fetch(`/api/projects/${id}/sessions`, {
+    credentials: 'include',
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch project sessions: ${response.statusText}`);
   }
   return response.json();
 }

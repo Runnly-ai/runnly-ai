@@ -1,0 +1,86 @@
+import { applySchemaFile, PostgresDatabaseClient } from '../db';
+import { Session } from './types/session';
+import { SessionRepo } from './types/session-repo';
+import { normalizeSessionContext } from './types/context';
+
+export class PostgresSessionRepo implements SessionRepo {
+  private readonly db: PostgresDatabaseClient;
+
+  constructor(connectionString: string) {
+    this.db = new PostgresDatabaseClient(connectionString);
+  }
+
+  async connect(): Promise<void> {
+    await this.db.connect();
+    await applySchemaFile(this.db, 'postgres');
+  }
+
+  async close(): Promise<void> {
+    await this.db.close();
+  }
+
+  async create(session: Session): Promise<Session> {
+    await this.db.query(
+      `INSERT INTO sessions (id, user_id, project_id, goal, status, context, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [
+        session.id,
+        session.userId,
+        session.projectId,
+        session.goal,
+        session.status,
+        JSON.stringify(session.context || {}),
+        session.createdAt,
+        session.updatedAt,
+      ]
+    );
+    return session;
+  }
+
+  async getById(id: string): Promise<Session | null> {
+    const rows = await this.db.query<any>('SELECT * FROM sessions WHERE id = $1 LIMIT 1', [id]);
+    return rows[0] ? this.mapRow(rows[0]) : null;
+  }
+
+  async listByUserId(userId: string): Promise<Session[]> {
+    const rows = await this.db.query<any>('SELECT * FROM sessions WHERE user_id = $1 ORDER BY created_at DESC', [userId]);
+    return rows.map((row) => this.mapRow(row));
+  }
+
+  async listByProjectId(projectId: string): Promise<Session[]> {
+    const rows = await this.db.query<any>('SELECT * FROM sessions WHERE project_id = $1 ORDER BY created_at DESC', [projectId]);
+    return rows.map((row) => this.mapRow(row));
+  }
+
+  async update(id: string, patch: Partial<Session>): Promise<Session | null> {
+    const current = await this.getById(id);
+    if (!current) {
+      return null;
+    }
+    const next: Session = {
+      ...current,
+      ...patch,
+      context: patch.context ? normalizeSessionContext(patch.context) : current.context,
+    };
+    await this.db.run(
+      `UPDATE sessions
+       SET user_id = $1, project_id = $2, goal = $3, status = $4, context = $5, updated_at = $6
+       WHERE id = $7`,
+      [next.userId, next.projectId, next.goal, next.status, JSON.stringify(next.context || {}), next.updatedAt, id]
+    );
+    return next;
+  }
+
+  private mapRow(row: any): Session {
+    return {
+      id: row.id,
+      userId: row.user_id,
+      projectId: row.project_id,
+      goal: row.goal,
+      status: row.status,
+      context: normalizeSessionContext(JSON.parse(row.context || '{}')),
+      createdAt: Number(row.created_at),
+      updatedAt: Number(row.updated_at),
+    };
+  }
+}

@@ -30,7 +30,7 @@ export class EventService {
    */
   async emit({ sessionId, type, payload }: EmitInput): Promise<EventRecord> {
     const event: EventRecord = {
-      id: createId('evt'),
+      id: createId(),
       sessionId,
       type,
       payload: payload || {},

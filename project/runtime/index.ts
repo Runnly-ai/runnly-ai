@@ -7,6 +7,7 @@ import { SessionService } from '../modules/session';
 import { TaskService } from '../modules/task';
 import { LocalWorkspace } from '../modules/workspace';
 import { UserIntakeService } from '../modules/intake';
+import { ProjectService } from '../modules/project';
 import { AzureDevOpsScmProvider, GitHubScmProvider, ScmProvider, ScmProviderType, ScmService, ScmWebhookService } from '../modules/scm';
 import { AuthService } from '../modules/auth';
 import { createLoggerWithOptions, Logger } from '../modules/utils/logger';
@@ -70,6 +71,7 @@ export async function createApplication(
     repos.taskRepo.connect(),
     repos.eventRepo.connect(),
     repos.commandRepo.connect(),
+    repos.projectRepo.connect(),
     pullRequestBindingRepo.connect(),
     authRepo.connect(),
     queue.connect(),
@@ -94,6 +96,7 @@ export async function createApplication(
     sessionTtlMs: config.authSessionTtlHours * 60 * 60 * 1000,
   });
   const sessionService = new SessionService({ sessionRepo: repos.sessionRepo, taskService, eventService });
+  const projectService = new ProjectService(repos.projectRepo);
   const scmProviders = new Map<ScmProviderType, ScmProvider>([
     ['github', new GitHubScmProvider()],
     ['azure-devops', new AzureDevOpsScmProvider()],
@@ -162,6 +165,7 @@ export async function createApplication(
     queue,
     services: {
       authService,
+      projectService,
       sessionService,
       userIntakeService,
       eventService,
@@ -176,15 +180,16 @@ export async function createApplication(
       }
       await runtime.stop();
       await Promise.all([
-        repos.sessionRepo.close(),
-        repos.taskRepo.close(),
-        repos.eventRepo.close(),
-        repos.commandRepo.close(),
-        pullRequestBindingRepo.close(),
-        authRepo.close(),
-        queue.close(),
-        eventBus.close(),
-      ]);
+      repos.sessionRepo.close(),
+      repos.taskRepo.close(),
+      repos.eventRepo.close(),
+      repos.commandRepo.close(),
+      repos.projectRepo.close(),
+      pullRequestBindingRepo.close(),
+      authRepo.close(),
+      queue.close(),
+      eventBus.close(),
+    ]);
     },
   };
 }

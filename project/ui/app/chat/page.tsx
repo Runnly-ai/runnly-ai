@@ -517,10 +517,6 @@ export default function ChatPage() {
     upsertSessionMeta(sessionId, { title: normalized });
     cancelRenameSession();
 
-    if (!sessionId.startsWith('sess_')) {
-      return;
-    }
-
     try {
       const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/rename`, {
         method: 'PATCH',

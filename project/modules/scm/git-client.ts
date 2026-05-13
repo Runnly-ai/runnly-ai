@@ -37,6 +37,15 @@ export class GitClient {
 
   /**
    * @param repoDir Existing clone directory.
+   * @param branch Branch name to fetch from origin.
+   * @param runOptions Optional command flags.
+   */
+  async fetchBranch(repoDir: string, branch: string, runOptions?: GitRunOptions): Promise<void> {
+    await this.run(['-C', repoDir, 'fetch', 'origin', branch], runOptions);
+  }
+
+  /**
+   * @param repoDir Existing clone directory.
    * @param worktreeDir New worktree directory.
    * @param branch New branch name.
    * @param baseBranch Base branch name.
@@ -96,6 +105,15 @@ export class GitClient {
    */
   async pushBranch(worktreeDir: string, branch: string, runOptions?: GitRunOptions): Promise<void> {
     await this.run(['-C', worktreeDir, 'push', '-u', 'origin', branch], runOptions);
+  }
+
+  /**
+   * @param worktreeDir Working tree directory.
+   * @param branch Branch name to rebase onto origin/branch.
+   * @param runOptions Optional command flags.
+   */
+  async rebaseOntoRemoteBranch(worktreeDir: string, branch: string, runOptions?: GitRunOptions): Promise<void> {
+    await this.run(['-C', worktreeDir, 'rebase', `origin/${branch}`], runOptions);
   }
 
   private run(args: string[], runOptions?: GitRunOptions): Promise<string> {

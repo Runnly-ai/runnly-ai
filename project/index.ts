@@ -2,6 +2,7 @@ import { createApiServer } from './api/server';
 import { getAppConfig } from './config/app-config';
 import { createApplication } from './runtime';
 import { Server } from 'node:http';
+import { SessionQueue } from './worker/session-queue';
 
 /**
  * Process entrypoint.
@@ -18,13 +19,14 @@ async function main(): Promise<void> {
 
   const server = createApiServer({
     authService: app.services.authService,
+    projectService: app.services.projectService,
     sessionService: app.services.sessionService,
     eventService: app.services.eventService,
     userIntakeService: app.services.userIntakeService,
     logger: app.logger,
     scmWebhookService: app.services.scmWebhookService,
     scmService: app.services.scmService,
-    sessionQueue: app.queue,
+    sessionQueue: new SessionQueue(app.queue),
   });
 
   const listener: Server = server.listen(config.port, () => {

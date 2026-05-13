@@ -4,7 +4,7 @@ import { EventRecord, EventService } from '../event';
 import { TaskService } from '../task';
 import { TaskStatus, TaskType } from '../task/types/task';
 import { Session, SessionStatus } from '../session/types/session';
-import { detectScmProvider, PullRequestBindingRepo, ScmService, ScmSessionConfig, ScmWorkspaceInfo } from '../scm';
+import { detectScmProvider, PullRequestBindingRepo, PullRequestInfo, ScmService, ScmSessionConfig, ScmWorkspaceInfo } from '../scm';
 import { Logger } from '../utils/logger';
 import { SessionContext, SessionScmContext, normalizeSessionContext } from '../session';
 import fs from 'node:fs/promises';
@@ -492,15 +492,16 @@ export class OrchestrationService {
     try {
       this.log('orchestrator publishing changes', { sessionId });
       
-      // Extract changes summary from implementation tasks
+      // Extract changes summary and full output from implementation tasks
       const changesSummary = await this.extractChangesSummary(sessionId);
+      const fullOutput = await this.extractImplementationFullOutput(sessionId);
       
       // Write changes summary to ao/GENERATE.md
       const workspaceId = this.extractWorkspaceId(session.context);
       await this.writeGenerateSummaryFile(sessionId, workspaceId, changesSummary);
       
-      // Build PR description with parsed changes summary
-      const prDescription = this.buildPrDescription(sessionId, session.goal, changesSummary);
+      // Build PR description with full implementation output
+      const prDescription = this.buildPrDescription(sessionId, session.goal, changesSummary, fullOutput);
       
       // Update config with generated PR description
       const configWithDescription: typeof scmConfig = {
@@ -508,10 +509,12 @@ export class OrchestrationService {
         prDescription,
       };
       
+      const existingPullRequest = this.extractExistingPullRequest(session.context);
       const publishResult = await this.deps.scmService.publishAndCollectFeedback({
         sessionId,
         config: configWithDescription,
         workspace: scmWorkspace,
+        existingPullRequest: existingPullRequest || undefined,
       });
 
       await this.updateSessionScmContext(sessionId, session.context, {
@@ -521,6 +524,14 @@ export class OrchestrationService {
       });
 
       if (publishResult.changed && publishResult.pullRequest) {
+        await this.updateSessionScmContext(sessionId, session.context, {
+          ...scmConfig,
+          workspace: scmWorkspace,
+          publish: {
+            ...publishResult,
+            pullRequest: publishResult.pullRequest,
+          },
+        });
         const repository = this.deps.scmService.parseRepository(scmConfig);
         if (this.deps.pullRequestBindingRepo) {
           const now = Date.now();
@@ -913,6 +924,41 @@ export class OrchestrationService {
     };
   }
 
+  private extractExistingPullRequest(context?: SessionContext): PullRequestInfo | null {
+    const normalized = normalizeSessionContext(context);
+    const scm = this.asRecord(normalized.scm);
+    const publish = this.asRecord(scm?.publish);
+    const pullRequest = this.asRecord(publish?.pullRequest);
+    if (!pullRequest) {
+      return null;
+    }
+
+    const number =
+      typeof pullRequest.number === 'number'
+        ? pullRequest.number
+        : typeof pullRequest.number === 'string'
+        ? Number(pullRequest.number)
+        : NaN;
+    const id = typeof pullRequest.id === 'string' ? pullRequest.id : String(number || '');
+    const url = typeof pullRequest.url === 'string' ? pullRequest.url : '';
+    const title = typeof pullRequest.title === 'string' ? pullRequest.title : '';
+    const sourceBranch = typeof pullRequest.sourceBranch === 'string' ? pullRequest.sourceBranch : '';
+    const targetBranch = typeof pullRequest.targetBranch === 'string' ? pullRequest.targetBranch : '';
+
+    if (!Number.isFinite(number) || !id || !url) {
+      return null;
+    }
+
+    return {
+      id,
+      number,
+      url,
+      title,
+      sourceBranch,
+      targetBranch,
+    };
+  }
+
   private extractWorkspaceId(context?: SessionContext): string {
     const normalized = normalizeSessionContext(context);
     const metadata = this.asRecord(normalized.metadata);
@@ -1007,9 +1053,35 @@ export class OrchestrationService {
   }
 
   /**
+   * Extracts full implementation output from implementation tasks for PR description.
+   */
+  private async extractImplementationFullOutput(sessionId: string): Promise<string> {
+    const implementTasks = await this.deps.taskService.listBySessionAndType(sessionId, TaskType.IMPLEMENT);
+
+    const outputs: string[] = [];
+    for (const task of implementTasks) {
+      if (task.status !== TaskStatus.DONE || !task.output) {
+        continue;
+      }
+
+      const outputRecord = this.asRecord(task.output);
+      const implementationFullOutput = outputRecord?.implementationFullOutput;
+      if (typeof implementationFullOutput === 'string' && implementationFullOutput.trim()) {
+        outputs.push(implementationFullOutput.trim());
+      }
+    }
+
+    if (outputs.length === 0) {
+      return 'Implementation completed. See commit for details.';
+    }
+
+    return outputs.join('\n\n---\n\n');
+  }
+
+  /**
    * Builds PR description from session goal and changes summary.
    */
-  private buildPrDescription(sessionId: string, goal: string, changesSummary: string): string {
+  private buildPrDescription(sessionId: string, goal: string, changesSummary: string, fullOutput: string): string {
     const lines: string[] = [];
     
     lines.push('## Automated Implementation');
@@ -1024,8 +1096,18 @@ export class OrchestrationService {
       lines.push('');
     }
     
-    // Add changes summary (already in markdown format with real newlines)
-    lines.push(changesSummary);
+    lines.push('## Implementation Output');
+    lines.push('');
+    lines.push(fullOutput.trim());
+    lines.push('');
+
+    if (changesSummary.trim() && changesSummary.trim() !== fullOutput.trim()) {
+      lines.push('## Summary');
+      lines.push('');
+      lines.push(changesSummary.trim());
+      lines.push('');
+    }
+
     lines.push('');
     lines.push('---');
     lines.push('*This pull request was automatically generated by AI workflow automation.*');

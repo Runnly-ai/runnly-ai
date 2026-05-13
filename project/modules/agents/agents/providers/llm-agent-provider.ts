@@ -1,5 +1,5 @@
 import { AgentProvider, LlmProviderId, AgentProviderRunInput, AgentProviderRunResult } from '../types/agent-provider';
-import { AgentToolCall, AgentToolExecutor, AgentToolName } from './agent-tools';
+import { AgentToolCall, AgentToolExecutor } from './agent-tools';
 import OpenAI from 'openai';
 import { Logger } from '../../../utils/logger';
 
@@ -50,6 +50,9 @@ export class LlmAgentProvider implements AgentProvider {
     const model = input.model || this.defaultModel;
     const runId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     const enableTools = input.enableTools !== false;
+    const allowedToolNames = new Set<string>(
+      toolExecutor && enableTools ? toolExecutor.listTools().map((tool) => tool.name) : []
+    );
 
     // Build prompts (backward compatible with old and new input formats)
     const systemPrompt = this.buildSystemPrompt(input, enableTools);
@@ -209,7 +212,7 @@ export class LlmAgentProvider implements AgentProvider {
           const toolName = toolCall.function?.name || '';
 
           let toolOutput = '';
-          if (!this.isKnownTool(toolName)) {
+          if (!allowedToolNames.has(toolName)) {
             toolOutput = `Unknown tool requested: ${toolName}`;
             this.debug('provider rejected unknown tool', {
               runId,
@@ -242,7 +245,7 @@ export class LlmAgentProvider implements AgentProvider {
                 toolArgs: parsedArgs,
               });
               const call: AgentToolCall = {
-                tool: toolName,
+                tool: toolName as AgentToolCall['tool'],
                 args: parsedArgs,
               };
               toolOutput = await toolExecutor.execute(call, input.cwd, input.workspaceRoot);
@@ -419,6 +422,14 @@ export class LlmAgentProvider implements AgentProvider {
       if (input.skillContext) {
         parts.push(`\n## Skill Context\n${input.skillContext}`);
       }
+
+      if (input.scmReviewComments) {
+        parts.push(`\n## SCM Review Comments\n${input.scmReviewComments}`);
+      }
+
+      if (input.scmFailures) {
+        parts.push(`\n## SCM Failures\n${input.scmFailures}`);
+      }
       
       parts.push(`\nWorkspace: ${input.cwd}`);
       
@@ -446,6 +457,8 @@ export class LlmAgentProvider implements AgentProvider {
     return [
       `Instruction:\n${instruction}`,
       input.skillContext ? `Skill context:\n${input.skillContext}` : '',
+      input.scmReviewComments ? `SCM review comments:\n${input.scmReviewComments}` : '',
+      input.scmFailures ? `SCM failures:\n${input.scmFailures}` : '',
       `Workspace cwd: ${input.cwd}`,
     ]
       .filter(Boolean)
@@ -560,21 +573,6 @@ export class LlmAgentProvider implements AgentProvider {
     }
 
     return undefined;
-  }
-
-  /**
-   * Validates tool names before execution.
-   */
-  private isKnownTool(value: string): value is AgentToolName {
-    return (
-      value === 'read_file' ||
-      value === 'write_file' ||
-      value === 'search' ||
-      value === 'delete_path' ||
-      value === 'move_path' ||
-      value === 'list_dir' ||
-      value === 'run_shell'
-    );
   }
 
   private parseToolArguments(value: string | undefined): Record<string, unknown> {

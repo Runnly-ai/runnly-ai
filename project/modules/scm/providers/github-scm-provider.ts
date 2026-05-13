@@ -51,6 +51,13 @@ interface GitHubReviewCommentResponse {
   user?: { login?: string };
 }
 
+interface GitHubIssueCommentResponse {
+  body?: string;
+  html_url?: string;
+  created_at?: string;
+  user?: { login?: string };
+}
+
 /**
  * GitHub SCM provider implementation.
  */
@@ -214,17 +221,26 @@ export class GitHubScmProvider implements ScmProvider {
     const token = this.requireToken(input.token);
     const parts = this.parseGitHubRepo(input.repo.repoUrl);
 
-    const comments = await requestJson<GitHubReviewCommentResponse[]>(
-      `https://api.github.com/repos/${parts.owner}/${parts.repo}/pulls/${input.pullRequest.number}/comments?per_page=100`,
-      {
-        headers: this.buildAuthHeaders(token),
-      }
-    );
+    const [reviewComments, issueComments] = await Promise.all([
+      requestJson<GitHubReviewCommentResponse[]>(
+        `https://api.github.com/repos/${parts.owner}/${parts.repo}/pulls/${input.pullRequest.number}/comments?per_page=100`,
+        {
+          headers: this.buildAuthHeaders(token),
+        }
+      ),
+      requestJson<GitHubIssueCommentResponse[]>(
+        `https://api.github.com/repos/${parts.owner}/${parts.repo}/issues/${input.pullRequest.number}/comments?per_page=100`,
+        {
+          headers: this.buildAuthHeaders(token),
+        }
+      ),
+    ]);
 
-    return comments
+    const inlineComments = reviewComments
       .filter((comment) => Boolean(comment.body && comment.body.trim()))
       .map((comment) => ({
         provider: this.type,
+        source: 'review' as const,
         author: comment.user?.login,
         body: comment.body || '',
         filePath: comment.path,
@@ -232,6 +248,19 @@ export class GitHubScmProvider implements ScmProvider {
         createdAt: comment.created_at,
         url: comment.html_url,
       }));
+
+    const conversationComments = issueComments
+      .filter((comment) => Boolean(comment.body && comment.body.trim()))
+      .map((comment) => ({
+        provider: this.type,
+        source: 'conversation' as const,
+        author: comment.user?.login,
+        body: comment.body || '',
+        createdAt: comment.created_at,
+        url: comment.html_url,
+      }));
+
+    return [...inlineComments, ...conversationComments];
   }
 
   private parseGitHubRepo(repoUrl: string): GitHubRepoParts {

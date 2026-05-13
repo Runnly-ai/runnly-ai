@@ -40,7 +40,7 @@ export class AuthService {
 
     const ts = nowTs();
     const user = await this.repo.createUser({
-      id: createId('usr'),
+      id: createId(),
       name,
       email,
       passwordHash: await hashPassword(password),
@@ -132,7 +132,7 @@ export class AuthService {
     const ttl = this.options.sessionTtlMs ?? DEFAULT_SESSION_TTL_MS;
     const token = generateSessionToken();
     await this.repo.createSession({
-      id: createId('usess'),
+      id: createId(),
       userId,
       tokenHash: hashSessionToken(token),
       expiresAt: ts + ttl,
@@ -152,4 +152,3 @@ export class AuthService {
     };
   }
 }
-

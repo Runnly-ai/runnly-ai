@@ -414,9 +414,9 @@ export class ScmWebhookService {
     headers: Record<string, string | string[] | undefined>
   ): string {
     if (provider === 'github') {
-      return this.header(headers, 'x-github-delivery') || createId('gh-delivery');
+      return this.header(headers, 'x-github-delivery') || createId();
     }
-    return this.header(headers, 'x-vss-deliveryid') || this.header(headers, 'x-request-id') || createId('azdo-delivery');
+    return this.header(headers, 'x-vss-deliveryid') || this.header(headers, 'x-request-id') || createId();
   }
 
   private header(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {

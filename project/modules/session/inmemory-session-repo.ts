@@ -30,6 +30,14 @@ export class InMemorySessionRepo implements SessionRepo {
     return this.sessions.get(id) || null;
   }
 
+  async listByUserId(userId: string): Promise<Session[]> {
+    return Array.from(this.sessions.values()).filter((session) => session.userId === userId);
+  }
+
+  async listByProjectId(projectId: string): Promise<Session[]> {
+    return Array.from(this.sessions.values()).filter((session) => session.projectId === projectId);
+  }
+
   /**
    * @param id Session id.
    * @param patch Partial session update.

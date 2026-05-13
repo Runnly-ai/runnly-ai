@@ -65,6 +65,8 @@ export interface AgentProviderRunInput {
   projectContext?: string;          // Project design, rules, etc
   previousOutput?: string;          // For iterations
   skillContext?: string;            // Skill-specific context
+  scmReviewComments?: string;       // PR review / conversation comments
+  scmFailures?: string;             // Pipeline / SCM failure context
   requirements?: Record<string, unknown>;
   constraints?: Record<string, unknown>;
   

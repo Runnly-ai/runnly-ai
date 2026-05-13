@@ -56,6 +56,7 @@ export interface PipelineFailureInfo {
 
 export interface ReviewCommentInfo {
   provider: ScmProviderType;
+  source?: 'review' | 'conversation';
   author?: string;
   body: string;
   filePath?: string;
@@ -110,6 +111,7 @@ export interface PublishChangesInput {
   sessionId: string;
   config: ScmSessionConfig;
   workspace: ScmWorkspaceInfo;
+  existingPullRequest?: PullRequestInfo;
 }
 
 export interface PublishChangesResult {

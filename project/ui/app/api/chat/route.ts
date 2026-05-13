@@ -80,9 +80,10 @@ export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
   try {
-    const body = (await request.json().catch(() => null)) as { message?: unknown; threadId?: unknown } | null;
+    const body = (await request.json().catch(() => null)) as { message?: unknown; threadId?: unknown; projectId?: unknown } | null;
     const message = typeof body?.message === 'string' ? body.message.trim() : '';
     const threadId = typeof body?.threadId === 'string' ? body.threadId.trim() : '';
+    const projectId = typeof body?.projectId === 'string' ? body.projectId.trim() : '';
 
     if (!message) {
       return NextResponse.json({ error: 'Field `message` is required.' }, { status: 400 });
@@ -93,7 +94,7 @@ export async function POST(request: NextRequest) {
       headers: {
         Authorization: `Bearer ${request.cookies.get(AUTH_COOKIE_NAME)?.value || ''}`,
       },
-      body: JSON.stringify({ message, threadId: threadId || undefined }),
+      body: JSON.stringify({ message, threadId: threadId || undefined, projectId: projectId || undefined }),
     });
     if (intake.kind === 'conversation') {
       return NextResponse.json({

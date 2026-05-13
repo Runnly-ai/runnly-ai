@@ -6,7 +6,13 @@ import { ScmService, ScmWebhookService } from '../modules/scm';
 import { UserIntakeService } from '../modules/intake';
 import { Logger } from '../modules/utils/logger';
 import { AuthService, PublicUser } from '../modules/auth';
-import { CommandQueue } from '../modules/infra';
+import { ProjectService } from '../modules/project';
+import { SessionQueueItem } from '../worker/session-queue';
+import { ScmProviderType } from '../modules/scm';
+
+interface SessionQueuePort {
+  enqueue(item: SessionQueueItem): Promise<void>;
+}
 
 interface CreateSessionBody {
   goal?: unknown;
@@ -46,6 +52,7 @@ export function createApiServer({
   sessionService,
   eventService,
   userIntakeService,
+  projectService,
   logger,
   scmWebhookService,
   scmService,
@@ -55,10 +62,11 @@ export function createApiServer({
   sessionService: SessionService;
   eventService: EventService;
   userIntakeService: UserIntakeService;
+  projectService: ProjectService;
   logger: Logger;
   scmWebhookService: ScmWebhookService;
   scmService: ScmService;
-  sessionQueue: CommandQueue;
+  sessionQueue: SessionQueuePort;
 }) {
   const app = express();
   app.use(
@@ -109,6 +117,53 @@ export function createApiServer({
       return null;
     }
     return user;
+  };
+
+  const inferProjectNameFromRepoUrl = (repoUrl: string): string => {
+    try {
+      const trimmed = repoUrl.trim().replace(/\.git$/, '');
+      const last = trimmed.split('/').filter(Boolean).pop() || 'Project';
+      return last.replace(/[-_]/g, ' ').replace(/\b\w/g, (match) => match.toUpperCase());
+    } catch {
+      return 'Project';
+    }
+  };
+
+  const resolveProjectForRequest = async (userId: string, projectId?: string, repoUrl?: string): Promise<string> => {
+    const explicitProjectId = projectId?.trim();
+    if (explicitProjectId) {
+      const existing = await projectService.getProjectById(explicitProjectId);
+      if (existing && existing.userId === userId) {
+        return existing.id;
+      }
+    }
+
+    const trimmedRepoUrl = repoUrl?.trim();
+    if (trimmedRepoUrl) {
+      const projects = await projectService.listUserProjects(userId);
+      const existing = projects.find((project) => project.repoUrl.trim() === trimmedRepoUrl);
+      if (existing) {
+        return existing.id;
+      }
+      const created = await projectService.createProject({
+        userId,
+        name: inferProjectNameFromRepoUrl(trimmedRepoUrl),
+        repoUrl: trimmedRepoUrl,
+      });
+      return created.id;
+    }
+
+    const fallbackProjects = await projectService.listUserProjects(userId);
+    if (fallbackProjects[0]) {
+      return fallbackProjects[0].id;
+    }
+
+    const created = await projectService.createProject({
+      userId,
+      name: 'Project',
+      repoUrl: 'about:blank',
+    });
+    return created.id;
   };
 
   app.post('/auth/register', wrap(async (req: Request<unknown, unknown, AuthBody>, res) => {
@@ -164,6 +219,69 @@ export function createApiServer({
     res.status(200).json({ ok: true });
   }));
 
+  app.get('/projects', wrap(async (req, res) => {
+    const user = await authenticateRequest(req, res);
+    if (!user) return;
+    const projects = await projectService.listUserProjects(user.id);
+    res.status(200).json(projects);
+  }));
+
+  app.post('/projects', wrap(async (req, res) => {
+    const user = await authenticateRequest(req, res);
+    if (!user) return;
+    const body = (req.body || {}) as { name?: unknown; repoUrl?: unknown; description?: unknown; design?: unknown; rules?: unknown };
+    if (typeof body.name !== 'string' || typeof body.repoUrl !== 'string') {
+      res.status(400).json({ error: 'Fields `name` and `repoUrl` are required.' });
+      return;
+    }
+    const project = await projectService.createProject({
+      userId: user.id,
+      name: body.name,
+      repoUrl: body.repoUrl,
+      description: typeof body.description === 'string' ? body.description : undefined,
+      design: typeof body.design === 'string' ? body.design : undefined,
+      rules: typeof body.rules === 'string' ? body.rules : undefined,
+    });
+    res.status(201).json(project);
+  }));
+
+  app.get('/projects/:id', wrap(async (req, res) => {
+    const user = await authenticateRequest(req, res);
+    if (!user) return;
+    const project = await projectService.getProjectById(String(req.params.id));
+    if (!project || project.userId !== user.id) {
+      res.status(404).json({ error: 'Project not found.' });
+      return;
+    }
+    const sessions = await sessionService.listProjectSessions(project.id);
+    res.status(200).json({ ...project, sessions });
+  }));
+
+  app.patch('/projects/:id', wrap(async (req, res) => {
+    const user = await authenticateRequest(req, res);
+    if (!user) return;
+    const project = await projectService.getProjectById(String(req.params.id));
+    if (!project || project.userId !== user.id) {
+      res.status(404).json({ error: 'Project not found.' });
+      return;
+    }
+    await projectService.updateProject(project.id, req.body || {});
+    const updated = await projectService.getProjectById(project.id);
+    res.status(200).json(updated);
+  }));
+
+  app.delete('/projects/:id', wrap(async (req, res) => {
+    const user = await authenticateRequest(req, res);
+    if (!user) return;
+    const project = await projectService.getProjectById(String(req.params.id));
+    if (!project || project.userId !== user.id) {
+      res.status(404).json({ error: 'Project not found.' });
+      return;
+    }
+    await projectService.deleteProject(project.id);
+    res.status(204).end();
+  }));
+
   /**
    * POST /sessions
    * Creates a new workflow session from user goal/context.
@@ -182,14 +300,29 @@ export function createApiServer({
     const context = typeof body.context === 'object' && body.context !== null
       ? body.context as Record<string, unknown>
       : {};
+    const projectId = typeof (body as { projectId?: unknown }).projectId === 'string'
+      ? String((body as { projectId?: unknown }).projectId)
+      : typeof context.projectId === 'string'
+        ? String(context.projectId)
+        : '';
+    const scmRepoUrl = typeof context?.scm === 'object' && context.scm !== null && typeof (context.scm as Record<string, unknown>).repoUrl === 'string'
+      ? String((context.scm as Record<string, unknown>).repoUrl)
+      : undefined;
+    const resolvedProjectId = await resolveProjectForRequest(user.id, projectId, scmRepoUrl);
     const mergedContext = {
       ...context,
       metadata: {
         ...(typeof context.metadata === 'object' && context.metadata !== null ? context.metadata as Record<string, unknown> : {}),
         userId: user.id,
+        projectId: resolvedProjectId,
       },
     };
-    const session = await sessionService.createSession(body.goal, mergedContext);
+    const session = await sessionService.createSession({
+      userId: user.id,
+      projectId: resolvedProjectId,
+      goal: body.goal,
+      context: mergedContext,
+    });
     const autoStart = body.autoStart === true;
     if (!autoStart) {
       res.status(201).json(session);
@@ -203,7 +336,11 @@ export function createApiServer({
     }
     
     // Enqueue session for worker to process
-    await sessionQueue.enqueue(session.id);
+    await sessionQueue.enqueue({
+      sessionId: session.id,
+      reason: 'initial',
+      createdAt: Date.now(),
+    });
     logger.info('session enqueued for processing', { sessionId: session.id });
     
     const view = await sessionService.getSessionView(session.id);
@@ -219,7 +356,7 @@ export function createApiServer({
    * Converts user message to a structured request and executes it.
    */
   app.post('/intake/requests', wrap(async (req, res) => {
-    const body = (req.body || {}) as { message?: unknown; threadId?: unknown };
+    const body = (req.body || {}) as { message?: unknown; threadId?: unknown; projectId?: unknown };
     const user = await authenticateRequest(req, res);
     if (!user) {
       return;
@@ -230,15 +367,24 @@ export function createApiServer({
     }
 
     const threadId = typeof body.threadId === 'string' ? body.threadId : undefined;
+    const projectId = typeof body.projectId === 'string' ? body.projectId : undefined;
+    const maybeRepoUrl = typeof req.body?.context?.scm?.repoUrl === 'string'
+      ? String(req.body.context.scm.repoUrl)
+      : undefined;
+    const resolvedProjectId = await resolveProjectForRequest(user.id, projectId, maybeRepoUrl);
     const result = await userIntakeService.handleMessage(
       body.message,
       threadId,
-      { metadata: { userId: user.id } },
+      { metadata: { userId: user.id, projectId: resolvedProjectId } },
     );
     
     // If a task session was started, enqueue it for worker processing
     if (result.kind === 'task' && result.sessionId && result.status === 'RUNNING') {
-      await sessionQueue.enqueue(result.sessionId);
+      await sessionQueue.enqueue({
+        sessionId: result.sessionId,
+        reason: 'initial',
+        createdAt: Date.now(),
+      });
       logger.info('session enqueued for processing', { sessionId: result.sessionId });
     }
     
@@ -262,7 +408,11 @@ export function createApiServer({
     }
     
     // Enqueue session for worker to process
-    await sessionQueue.enqueue(sessionId);
+    await sessionQueue.enqueue({
+      sessionId,
+      reason: 'manual',
+      createdAt: Date.now(),
+    });
     logger.info('session enqueued for processing', { sessionId });
     
     const view = await sessionService.getSessionView(sessionId);
@@ -297,11 +447,13 @@ export function createApiServer({
       hasScmContext: Boolean(session.context?.scm),
     });
 
-    const scm = session.context?.scm;
-    const publish = scm && typeof scm === 'object' ? scm.publish : undefined;
-    const pullRequest = publish && typeof publish === 'object' ? publish.pullRequest : undefined;
-    const provider = scm?.provider;
-    const repoUrl = scm?.repoUrl;
+    const scm = await resolveSessionScmContext(sessionService, session.id, session.context);
+    const scmValue = asRecord(scm);
+    const publish = asRecord(scmValue?.publish);
+    const pullRequest = asRecord(publish?.pullRequest);
+    const provider = (typeof scmValue?.provider === 'string' ? scmValue.provider : '') as ScmProviderType | '';
+    const repoUrl = typeof scmValue?.repoUrl === 'string' ? scmValue.repoUrl : '';
+    const token = typeof scmValue?.token === 'string' ? scmValue.token : undefined;
 
     if (!provider || !repoUrl || !pullRequest?.number) {
       logger.info('scm sync skipped - missing pull request binding', {
@@ -325,14 +477,14 @@ export function createApiServer({
     });
     const feedback = await scmService.collectPullRequestFeedback({
       repo: repository,
-      token: scm?.token,
+      token,
       pullRequest: {
-        id: pullRequest.id,
-        number: pullRequest.number,
-        url: pullRequest.url,
-        title: session.goal,
-        sourceBranch: pullRequest.sourceBranch || '',
-        targetBranch: pullRequest.targetBranch || '',
+        id: String(pullRequest.id || ''),
+        number: Number(pullRequest.number || 0),
+        url: String(pullRequest.url || ''),
+        title: String(session.goal || ''),
+        sourceBranch: String(pullRequest.sourceBranch || ''),
+        targetBranch: String(pullRequest.targetBranch || ''),
       },
     });
 
@@ -398,6 +550,18 @@ export function createApiServer({
         pipelineFailures: feedback.pipelineFailures,
         reviewComments: feedback.reviewComments,
       },
+    });
+
+    await sessionQueue.enqueue({
+      sessionId,
+      reason: 'scm-sync',
+      triggerEventId: feedback.reviewComments[0]?.url,
+      createdAt: Date.now(),
+    });
+    logger.info('scm sync re-enqueued session', {
+      sessionId,
+      pipelineFailureCount: feedback.pipelineFailures.length,
+      reviewCommentCount: feedback.reviewComments.length,
     });
 
     logger.info('scm sync completed', {
@@ -474,6 +638,18 @@ export function createApiServer({
     }
     const events = await sessionService.getEvents(String(req.params.id));
     res.status(200).json(events);
+  }));
+
+  app.get('/projects/:id/sessions', wrap(async (req, res) => {
+    const user = await authenticateRequest(req, res);
+    if (!user) return;
+    const project = await projectService.getProjectById(String(req.params.id));
+    if (!project || project.userId !== user.id) {
+      res.status(404).json({ error: 'Project not found.' });
+      return;
+    }
+    const sessions = await sessionService.listProjectSessions(project.id);
+    res.status(200).json(sessions);
   }));
 
   /**
@@ -653,4 +829,36 @@ export function createApiServer({
   });
 
   return app;
+}
+
+async function resolveSessionScmContext(
+  sessionService: SessionService,
+  sessionId: string,
+  context: SessionContext | undefined
+): Promise<Record<string, unknown> | null> {
+  const scm = asRecord(context?.scm);
+  const publish = asRecord(scm?.publish);
+  const pullRequest = asRecord(publish?.pullRequest);
+
+  if (pullRequest && typeof pullRequest.number === 'number') {
+    return scm;
+  }
+
+  const latestSession = await sessionService.getSession(sessionId);
+  const latestScm = asRecord(latestSession?.context?.scm);
+  const latestPublish = asRecord(latestScm?.publish);
+  const latestPullRequest = asRecord(latestPublish?.pullRequest);
+
+  if (latestPullRequest && typeof latestPullRequest.number === 'number') {
+    return latestScm;
+  }
+
+  return scm;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+  return value as Record<string, unknown>;
 }

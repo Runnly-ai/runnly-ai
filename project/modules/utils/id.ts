@@ -1,10 +1,11 @@
+import { v7 as uuidv7 } from 'uuid';
+
 /**
- * Generates a prefixed unique id using timestamp + random suffix.
+ * Generates a UUIDv7.
  *
- * @param prefix Id prefix (e.g. sess, task, cmd).
- * @returns Generated id string.
+ * The result is time-ordered for better index locality while remaining
+ * globally unique enough for application identifiers.
  */
-export function createId(prefix: string): string {
-  const rand = Math.random().toString(36).slice(2, 10);
-  return `${prefix}_${Date.now()}_${rand}`;
+export function createId(_prefix?: string): string {
+  return uuidv7();
 }

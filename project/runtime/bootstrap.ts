@@ -4,6 +4,7 @@ import { AuthRepo } from '../modules/auth';
 import { CommandRepo } from '../modules/command';
 import { EventRepo } from '../modules/event';
 import { CommandQueue, EventBus } from '../modules/infra';
+import { ProjectRepository } from '../modules/project';
 import { PullRequestBindingRepo } from '../modules/scm';
 import { SessionRepo } from '../modules/session';
 import { TaskRepo } from '../modules/task';
@@ -18,6 +19,7 @@ export interface RuntimeStorage {
     taskRepo: TaskRepo;
     eventRepo: EventRepo;
     commandRepo: CommandRepo;
+    projectRepo: ProjectRepository;
   };
   pullRequestBindingRepo: PullRequestBindingRepo;
   authRepo: AuthRepo;
@@ -74,6 +76,7 @@ export async function connectRuntimeStorage(config: AppConfig): Promise<RuntimeS
     repos.taskRepo.connect(),
     repos.eventRepo.connect(),
     repos.commandRepo.connect(),
+    repos.projectRepo.connect(),
     pullRequestBindingRepo.connect(),
     authRepo.connect(),
     queue.connect(),
@@ -95,6 +98,7 @@ export async function closeRuntimeStorage(storage: RuntimeStorage): Promise<void
     storage.repos.taskRepo.close(),
     storage.repos.eventRepo.close(),
     storage.repos.commandRepo.close(),
+    storage.repos.projectRepo.close(),
     storage.pullRequestBindingRepo.close(),
     storage.authRepo.close(),
     storage.queue.close(),

@@ -52,6 +52,16 @@ export class RedisSessionRepo implements SessionRepo {
     return JSON.parse(raw) as Session;
   }
 
+  async listByUserId(userId: string): Promise<Session[]> {
+    const raws = await this.client.hVals(this.sessionsKey);
+    return raws.map((raw) => JSON.parse(raw) as Session).filter((session) => session.userId === userId);
+  }
+
+  async listByProjectId(projectId: string): Promise<Session[]> {
+    const raws = await this.client.hVals(this.sessionsKey);
+    return raws.map((raw) => JSON.parse(raw) as Session).filter((session) => session.projectId === projectId);
+  }
+
   /**
    * @param id Session id.
    * @param patch Partial session update.

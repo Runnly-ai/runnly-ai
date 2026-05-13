@@ -3,6 +3,7 @@ import { AuthService } from '../modules/auth';
 import { CommandService } from '../modules/command';
 import { EventService } from '../modules/event';
 import { UserIntakeService } from '../modules/intake';
+import { ProjectService } from '../modules/project';
 import { AzureDevOpsScmProvider, GitHubScmProvider, ScmProvider, ScmProviderType, ScmService, ScmWebhookService } from '../modules/scm';
 import { SessionService } from '../modules/session';
 import { TaskService } from '../modules/task';
@@ -34,6 +35,7 @@ export async function createApiApplication(config: AppConfig) {
     taskService,
     eventService,
   });
+  const projectService = new ProjectService(storage.repos.projectRepo);
   const scmProviders = new Map<ScmProviderType, ScmProvider>([
     ['github', new GitHubScmProvider()],
     ['azure-devops', new AzureDevOpsScmProvider()],
@@ -76,6 +78,7 @@ export async function createApiApplication(config: AppConfig) {
     queue: storage.queue, // Expose queue for session enqueueing
     services: {
       authService,
+      projectService,
       sessionService,
       userIntakeService,
       eventService,
