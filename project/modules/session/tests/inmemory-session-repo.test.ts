@@ -190,7 +190,7 @@ describe('InMemorySessionRepo', () => {
       const updated = await repo.update('sess_1', { status: SessionStatus.RUNNING });
 
       expect(updated?.status).toBe(SessionStatus.RUNNING);
-      expect(updated?.context).toEqual({ userId: 'user_1' });
+      expect(updated?.context).toEqual({ userId: 'user_1', projectId: 'proj_1' });
     });
   });
 
